@@ -321,7 +321,22 @@ node src/simulate.js --replay runs/my-seed.json --autoplay --fps 6
 - `Space`: toggle autoplay on/off
 - `Up Arrow`: increase autoplay speed
 - `Down Arrow`: decrease autoplay speed
+- `Home`: jump to first tick
+- `End`: jump to last tick
 - `q`: quit replay
+
+### **Replay Timeline Panel**
+
+The replay viewer includes a per-tick timeline section below the ASCII map.
+
+- Shows key events for the selected tick:
+  - cycle phase (`day`/`night`)
+  - weather (`rain`/`drought` affected cell counts)
+  - births/deaths for plants, herbivores, and carnivores
+  - predation/combat kill counts
+  - warning streaks (`low-o2`, `high-co2`, `low-water`)
+
+This helps debug why population and resource curves changed at a specific tick.
 
 ### **Implementation Notes**
 

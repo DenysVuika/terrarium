@@ -42,6 +42,8 @@ class Simulator {
 
     this.history = [];
     this.outcome = null;
+    this.currentTickEvents = [];
+    this.tickStats = this.createTickStats();
 
     this.seedInitialPopulation();
   }
@@ -184,14 +186,35 @@ class Simulator {
       plants: Array.from(this.plants.keys()),
       herbivores,
       carnivores,
+      events: this.currentTickEvents.slice(0, 12),
+    };
+  }
+
+  addEvent(message) {
+    if (this.currentTickEvents.length < 20) {
+      this.currentTickEvents.push(message);
+    }
+  }
+
+  createTickStats() {
+    return {
+      herbivoreBirths: 0,
+      carnivoreBirths: 0,
+      herbivoreDeaths: 0,
+      carnivoreDeaths: 0,
+      herbivoreKillsByCarnivores: 0,
+      carnivoreKillsByCarnivores: 0,
     };
   }
 
   step() {
     this.tick += 1;
     this.day = !this.day;
+    this.currentTickEvents = [];
+    this.tickStats = this.createTickStats();
 
     const light = this.day ? (this.config.lidOpen ? 100 : 50) : 0;
+    this.addEvent(`cycle: ${this.day ? 'day' : 'night'} light=${light}`);
 
     this.processWeatherAndCellResources();
     this.updateGlobalGases(light);
@@ -234,12 +257,17 @@ class Simulator {
   }
 
   processWeatherAndCellResources() {
+    let rainEvents = 0;
+    let droughtEvents = 0;
+
     for (let i = 0; i < this.world.length; i += 1) {
       if (this.rng.chance(this.config.rainChance)) {
         this.world.water[i] += this.config.rainAmount;
+        rainEvents += 1;
       }
       if (this.rng.chance(this.config.droughtChance)) {
         this.world.water[i] -= this.config.droughtAmount;
+        droughtEvents += 1;
       }
 
       if (this.config.lidOpen) {
@@ -252,6 +280,13 @@ class Simulator {
 
       this.world.water[i] = clamp(this.world.water[i], 0, 100);
       this.world.nutrients[i] = clamp(this.world.nutrients[i], 0, 300);
+    }
+
+    if (rainEvents > 0) {
+      this.addEvent(`weather: rain cells=${rainEvents}`);
+    }
+    if (droughtEvents > 0) {
+      this.addEvent(`weather: drought cells=${droughtEvents}`);
     }
   }
 
@@ -351,6 +386,13 @@ class Simulator {
       );
     }
 
+    if (toAdd.length > 0) {
+      this.addEvent(`plants: born=${toAdd.length}`);
+    }
+    if (toRemove.length > 0) {
+      this.addEvent(`plants: died=${toRemove.length}`);
+    }
+
     for (let i = 0; i < toAdd.length; i += 1) {
       if (!this.plants.has(toAdd[i].cell)) {
         this.plants.set(toAdd[i].cell, toAdd[i]);
@@ -381,6 +423,25 @@ class Simulator {
       this.updateInsectLifecycle(carnivore, occupied, true);
       if (!carnivore.alive || carnivore.stage !== 'adult') continue;
       this.runCarnivoreTurn(carnivore, occupied);
+    }
+
+    if (this.tickStats.herbivoreBirths > 0) {
+      this.addEvent(`herbivores: born=${this.tickStats.herbivoreBirths}`);
+    }
+    if (this.tickStats.carnivoreBirths > 0) {
+      this.addEvent(`carnivores: born=${this.tickStats.carnivoreBirths}`);
+    }
+    if (this.tickStats.herbivoreDeaths > 0) {
+      this.addEvent(`herbivores: died=${this.tickStats.herbivoreDeaths}`);
+    }
+    if (this.tickStats.carnivoreDeaths > 0) {
+      this.addEvent(`carnivores: died=${this.tickStats.carnivoreDeaths}`);
+    }
+    if (this.tickStats.herbivoreKillsByCarnivores > 0) {
+      this.addEvent(`predation: herbivore-kills=${this.tickStats.herbivoreKillsByCarnivores}`);
+    }
+    if (this.tickStats.carnivoreKillsByCarnivores > 0) {
+      this.addEvent(`combat: carnivore-kills=${this.tickStats.carnivoreKillsByCarnivores}`);
     }
   }
 
@@ -448,6 +509,9 @@ class Simulator {
       );
       if (isCarnivore) {
         entity.ap = 0;
+        this.tickStats.carnivoreDeaths += 1;
+      } else {
+        this.tickStats.herbivoreDeaths += 1;
       }
     }
   }
@@ -484,6 +548,7 @@ class Simulator {
         const child = this.createInsect('herbivore', spawnCell, 5);
         this.herbivores.push(child);
         occupied.add(spawnCell);
+        this.tickStats.herbivoreBirths += 1;
       }
     }
   }
@@ -520,6 +585,8 @@ class Simulator {
           );
           carnivore.energy += 5;
           carnivore.ap = clamp(carnivore.ap + 5, 0, 10);
+          this.tickStats.herbivoreDeaths += 1;
+          this.tickStats.herbivoreKillsByCarnivores += 1;
         }
       }
     }
@@ -564,6 +631,8 @@ class Simulator {
         );
         carnivore.energy += 5;
         carnivore.ap = clamp(carnivore.ap + 5, 0, 10);
+        this.tickStats.carnivoreDeaths += 1;
+        this.tickStats.carnivoreKillsByCarnivores += 1;
       }
     }
 
@@ -576,6 +645,7 @@ class Simulator {
         const child = this.createInsect('carnivore', spawnCell, 7);
         this.carnivores.push(child);
         occupied.add(spawnCell);
+        this.tickStats.carnivoreBirths += 1;
       }
     }
   }
@@ -730,6 +800,16 @@ class Simulator {
     this.lowO2Ticks = this.o2 < 10 ? this.lowO2Ticks + 1 : 0;
     this.highCO2Ticks = this.co2 > 90 ? this.highCO2Ticks + 1 : 0;
     this.lowWaterTicks = hasDrinkable ? 0 : this.lowWaterTicks + 1;
+
+    if (this.lowO2Ticks > 0) {
+      this.addEvent(`warning: low-o2 streak=${this.lowO2Ticks}`);
+    }
+    if (this.highCO2Ticks > 0) {
+      this.addEvent(`warning: high-co2 streak=${this.highCO2Ticks}`);
+    }
+    if (this.lowWaterTicks > 0) {
+      this.addEvent(`warning: low-water streak=${this.lowWaterTicks}`);
+    }
 
     if (this.lowO2Ticks >= 3) {
       this.outcome = { type: 'lose', reason: 'o2 below 10 for 3 ticks' };

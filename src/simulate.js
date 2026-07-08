@@ -227,12 +227,27 @@ function renderFrame(replayPayload, frameIndex, width, height, playback = {}) {
   lines.push(
     `Playback: ${playback.isPlaying ? 'auto' : 'manual'} @ ${playback.fps ?? 4} fps`,
   );
-  lines.push('Controls: Left/Right step, Space autoplay, Up/Down speed, q quits.');
+  lines.push('Controls: Left/Right step, Space autoplay, Up/Down speed, Home/End jump, q quits.');
   lines.push('');
 
   for (let py = 0; py < height; py += 1) {
     const start = py * width;
     lines.push(map.slice(start, start + width).join(''));
+  }
+
+  lines.push('');
+  lines.push('Timeline (current tick):');
+  const tickEvents = Array.isArray(frame.events) ? frame.events : [];
+  if (tickEvents.length === 0) {
+    lines.push('  - none');
+  } else {
+    const maxEvents = 8;
+    for (let i = 0; i < Math.min(maxEvents, tickEvents.length); i += 1) {
+      lines.push(`  - ${tickEvents[i]}`);
+    }
+    if (tickEvents.length > maxEvents) {
+      lines.push(`  - ... ${tickEvents.length - maxEvents} more`);
+    }
   }
 
   process.stdout.write('\x1Bc');
@@ -326,6 +341,18 @@ function startReplayInteractive(replayPayload, width, height, options = {}) {
       if (isPlaying) {
         startAuto();
       }
+      draw();
+      return;
+    }
+    if (key === '\u001b[H' || key === '\u001bOH') {
+      stopAuto();
+      index = 0;
+      draw();
+      return;
+    }
+    if (key === '\u001b[F' || key === '\u001bOF') {
+      stopAuto();
+      index = replayPayload.replay.frames.length - 1;
       draw();
       return;
     }
