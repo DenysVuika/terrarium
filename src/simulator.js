@@ -153,7 +153,7 @@ class Simulator {
     const light = this.day ? (this.config.lidOpen ? 100 : 50) : 0;
 
     this.processWeatherAndCellResources();
-    this.updateGlobalGases();
+    this.updateGlobalGases(light);
     this.processPlants(light);
     this.processInsects();
     this.cleanupDead();
@@ -194,15 +194,15 @@ class Simulator {
 
   processWeatherAndCellResources() {
     for (let i = 0; i < this.world.length; i += 1) {
-      if (this.rng.chance(0.1)) {
-        this.world.water[i] += 10;
+      if (this.rng.chance(this.config.rainChance)) {
+        this.world.water[i] += this.config.rainAmount;
       }
-      if (this.rng.chance(0.05)) {
-        this.world.water[i] -= 5;
+      if (this.rng.chance(this.config.droughtChance)) {
+        this.world.water[i] -= this.config.droughtAmount;
       }
 
       if (this.config.lidOpen) {
-        this.world.water[i] -= 0.1;
+        this.world.water[i] -= this.config.evaporationOpen;
       }
 
       if (this.world.terrain[i] === TERRAIN.SOIL) {
@@ -214,14 +214,22 @@ class Simulator {
     }
   }
 
-  updateGlobalGases() {
+  updateGlobalGases(light) {
     const plantCount = this.plants.size;
     const insects =
       this.herbivores.filter((h) => h.alive).length +
       this.carnivores.filter((c) => c.alive).length;
 
-    this.o2 += 2 * (plantCount / 10) - 1 * (insects / 10);
-    this.co2 += -1 * (plantCount / 10) + 1 * (insects / 10);
+    // Plants only perform meaningful gas exchange when light is available.
+    const photosynthesisFactor = light >= 50 ? light / 100 : 0;
+    const scaledPlantFlux = 2 * (plantCount / 10) * photosynthesisFactor;
+    const scaledInsectFlux = 1 * (insects / 10);
+
+    this.o2 += (scaledPlantFlux - scaledInsectFlux) * this.config.gasFluxScale;
+    this.co2 += (-1 * (plantCount / 10) * photosynthesisFactor + scaledInsectFlux) * this.config.gasFluxScale;
+
+    this.o2 += (50 - this.o2) * this.config.gasMidpointPull;
+    this.co2 += (50 - this.co2) * this.config.gasMidpointPull;
 
     this.o2 = clamp(this.o2, 0, 100);
     this.co2 = clamp(this.co2, 0, 100);
@@ -351,7 +359,7 @@ class Simulator {
     entity.stepCharge = clamp(entity.stepCharge + 1, 0, 2);
 
     if (isCarnivore) {
-      entity.ap = clamp(entity.ap + 2, 0, 10);
+      entity.ap = clamp(entity.ap + this.config.carnivoreApRegenPerTick, 0, 10);
     }
 
     if (entity.stage === 'egg' && entity.stageTicks >= 1) {
@@ -364,15 +372,15 @@ class Simulator {
 
     const hasNearbyWater = this.world
       .neighbors4(entity.cell)
-      .some((n) => this.world.water[n] >= 0.5);
+      .some((n) => this.world.water[n] >= this.config.insectDrinkAmount);
 
     if (hasNearbyWater) {
       const waterSources = this.world
         .neighbors4(entity.cell)
-        .filter((n) => this.world.water[n] >= 0.5);
+        .filter((n) => this.world.water[n] >= this.config.insectDrinkAmount);
       const drinkCell = this.rng.pick(waterSources);
       this.world.water[drinkCell] = clamp(
-        this.world.water[drinkCell] - 0.5,
+        this.world.water[drinkCell] - this.config.insectDrinkAmount,
         0,
         100,
       );
@@ -411,11 +419,13 @@ class Simulator {
       this.moveRandom(herbivore, occupied, false);
     }
 
-    const adjacentPlants = this.world
-      .neighbors4(herbivore.cell)
+    const consumablePlants = [herbivore.cell]
+      .concat(this.world.neighbors4(herbivore.cell))
+      .filter((n, index, arr) => arr.indexOf(n) === index)
       .filter((n) => this.plants.has(n));
-    if (adjacentPlants.length > 0 && this.rng.chance(0.8)) {
-      const plantCell = this.rng.pick(adjacentPlants);
+
+    if (consumablePlants.length > 0 && this.rng.chance(0.8)) {
+      const plantCell = this.rng.pick(consumablePlants);
       this.plants.delete(plantCell);
       this.world.nutrients[plantCell] = clamp(
         this.world.nutrients[plantCell] + 50,

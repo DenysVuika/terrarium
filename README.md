@@ -88,7 +88,7 @@
   - **Starvation**: Die if energy ≤ 0 for 3 ticks.
 - **Attack Points (AP)**:
   - **Max**: 10.
-  - **Regeneration**: +2/tick (passive).
+  - **Regeneration**: +1/tick (passive).
   - **Death**: AP resets to 0.
 - **Movement**:
   - **Soil**: 1 cell/step, -1 energy.
@@ -295,25 +295,25 @@ node src/simulate.js --ticks 100 --seed my-seed --plants 1800 --herbivores 180 -
 
 ### **Single Baseline Run**
 
-- Command: `node src/simulate.js --ticks 100 --seed baseline-1`
+- Command: `node src/simulate.js --ticks 100 --seed baseline-5`
 - Outcome: **WIN** (`survived 100 ticks`)
-- Final state: plants `1507`, herbivores `0`, carnivores `5`, O2 `100`, CO2 `0`
+- Final state: plants `1542`, herbivores `4`, carnivores `2`, O2 `55.48`, CO2 `47.28`
 
 ### **5-Seed Sweep**
 
 | Seed | Outcome | Final Tick | Plants | Insects | O2 | CO2 |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| alpha | win | 100 | 1551 | 3 | 100 | 0 |
-| beta | win | 100 | 1509 | 3 | 100 | 0 |
-| gamma | win | 100 | 1534 | 2 | 100 | 0 |
-| delta | win | 100 | 1570 | 3 | 100 | 0 |
-| epsilon | win | 100 | 1567 | 3 | 100 | 0 |
+| alpha | win | 100 | 1480 | 6 | 55.24 | 47.40 |
+| beta | win | 100 | 1446 | 8 | 55.10 | 47.47 |
+| gamma | win | 100 | 1462 | 3 | 55.21 | 47.41 |
+| delta | win | 100 | 1529 | 6 | 55.43 | 47.31 |
+| epsilon | win | 100 | 1474 | 5 | 55.27 | 47.38 |
 
 ### **Current Balance Gaps (Expected for Prototype)**
 
-1. **Herbivore collapse**: herbivores consistently go extinct before tick 100.
-2. **Gas saturation**: O2/CO2 clamp to extremes (`100/0`) quickly.
-3. **Water accumulation**: average water trends high in long runs.
+1. **Biodiversity is fragile**: insects survive to tick 100, but total insect count trends low.
+2. **Gas center bias**: O2/CO2 currently stabilize around mid-range due damping, not pure ecosystem equilibrium.
+3. **Predator pressure sensitivity**: small changes to carnivore count/AP regen still shift outcomes noticeably.
 
 These are the primary targets for the next tuning pass.
 
