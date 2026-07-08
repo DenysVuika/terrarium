@@ -44,7 +44,7 @@
   - **Seed (0-20)**: -0.2 nutrients/tick. Dies if growth < 10.
   - **Sprout (20-80)**: -0.5 nutrients/tick.
   - **Mature (80-100)**: -1 nutrient/tick. Can reproduce.
-- **Growth**: +1 level/tick if **Light > 50%**, **Water > 30%**, **Nutrients > 20%**.
+- **Growth**: +1 level/tick if **Light >= 50%**, **Water > 30%**, **Nutrients > 20%**.
 - **Reproduction**:
   - **Conditions**: Mature, adjacent empty soil cell, nutrients > 50%.
   - **Cost**: -10 nutrients from parent cell.
@@ -67,6 +67,7 @@
   - **Soil**: 1 cell/step, -1 energy.
   - **Sand**: 2 steps = 1 cell, -1 energy.
 - **Eating**:
+  - **Targeting**: Scan within a 5x5 visibility area and move toward nearest plant.
   - **Consume Plant**: +5 energy (80% success if adjacent).
 - **Fleeing**:
   - **20% chance to escape** carnivore attacks.
@@ -91,11 +92,12 @@
   - **Death**: AP resets to 0.
 - **Movement**:
   - **Soil**: 1 cell/step, -1 energy.
-  - **Sand**: 2 steps = 1 cell, -1 energy +1 AP (for attacks).
+  - **Sand**: 2 steps = 1 cell, -1 energy and -1 AP (terrain strain).
 - **Combat**:
   - **Attack Cost**: 3 AP.
+  - **Per-Turn Action Cap**: 1 attack action per tick, plus at most 1 chase.
   - **Herbivore Hunt**:
-    - 20% chance herbivore escapes (flees 1 cell).
+    - 20% chance herbivore escapes (flees 1 cell); otherwise attack resolves.
     - If caught: -2 energy to herbivore. If herbivore dies: +5 energy, +5 AP.
   - **Carnivore vs. Carnivore**:
     - Turn-based: Both lose -2 energy per attack.
@@ -116,14 +118,15 @@
 
 #### **Global Pools**
 
+- **Normalization**: O₂ and CO₂ are normalized percentages in the range 0-100 and are clamped each tick.
 - **O₂**: Initial = 100.
-  - **Plants**: +2/tick (photosynthesis).
-  - **Insects**: -1/tick (respiration).
-  - **Imbalance**: O₂ < 10% → insects lose -1 energy/tick.
+  - **Plants**: +2/tick per 10 living plants (photosynthesis).
+  - **Insects**: -1/tick per 10 living insects (respiration).
+  - **Imbalance**: O₂ < 10 → insects lose -1 energy/tick.
 - **CO₂**: Initial = 50.
-  - **Plants**: -1/tick (consumption).
-  - **Insects**: +1/tick (production).
-  - **Imbalance**: CO₂ > 90% → plants grow at 50% rate.
+  - **Plants**: -1/tick per 10 living plants (consumption).
+  - **Insects**: +1/tick per 10 living insects (production).
+  - **Imbalance**: CO₂ > 90 → plants grow at 50% rate.
 
 #### **Per-Cell Resources**
 
@@ -135,7 +138,9 @@
 - **Nutrients**:
   - **Soil Regeneration**: +0.1/tick/cell.
   - **Depletion**: If <10 in a cell, plants wilt.
-  - **Decay**: Dead plants/insects add +20 nutrients to their cell.
+  - **Decay**:
+    - Dead plants add +50 nutrients to their cell.
+    - Dead herbivores/carnivores add +20 nutrients to their cell.
 
 **🔗 Diagram**: [Terrarium: Resource Cycle](sandbox/terrarium-resource-cycle.md)
 
@@ -153,8 +158,28 @@
    - **Insects**: Move, eat, reproduce, fight, or die.
 5. **Decay**: Process dead entities → add nutrients to soil.
 6. **Win/Lose Check**:
-   - **Lose**: O₂ < 10%, CO₂ > 90%, water = 0, or all plants/insects die.
+  - **Lose**:
+    - O₂ < 10 for 3 consecutive ticks, or
+    - CO₂ > 90 for 3 consecutive ticks, or
+    - no water cell has water > 1 for 3 consecutive ticks, or
+    - all plants die, or all insects die.
    - **Win**: Ecosystem survives 100 ticks.
+
+---
+
+### **7. Canonical Conflict-Resolution Rules (Prototype)**
+
+Use this section as the source of truth if any diagram and prose disagree.
+
+| Rule Area | Canonical Rule |
+|---|---|
+| Carnivore on sand | 2 steps = 1 cell, -1 energy and -1 AP |
+| Herbivore flee roll | 20% escape success; 80% attack resolves |
+| Carnivore turn economy | Max 1 attack action and 1 chase per tick |
+| Plant growth light threshold | Growth allowed at light >= 50 |
+| Decay rewards | Plant: +50 nutrients; insect: +20 nutrients |
+| Gas bounds | O₂/CO₂ are clamped to 0-100 each tick |
+| Water-loss condition | Trigger only after 3 ticks with no cell above water > 1 |
 
 **🔗 Diagram**: [Terrarium: Main Game Loop](sandbox/terrarium-main-game-loop.md)
 

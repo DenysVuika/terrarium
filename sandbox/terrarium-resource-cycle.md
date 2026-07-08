@@ -2,17 +2,17 @@
 flowchart TD
     %% Global Resources
     O2[O2 Pool: Global
-Initial: 100] -->|+2/tick| Plants
+Range: 0-100, Initial: 100] -->|+2/tick per 10 plants| Plants
     CO2[CO2 Pool: Global
-Initial: 50] -->|-1/tick| Plants
-    Plants[Plants] -->|Photosynthesis: +2 O2/tick| O2
-    Plants -->|Consumes: -1 CO2/tick| CO2
+Range: 0-100, Initial: 50] -->|-1/tick per 10 plants| Plants
+    Plants[Plants] -->|Photosynthesis: +2 O2/tick per 10 plants| O2
+    Plants -->|Consumes: -1 CO2/tick per 10 plants| CO2
     
     %% Insects
-    Herbivore[Herbivore Insects] -->|Consumes: -1 O2/tick| O2
-    Herbivore -->|Produces: +1 CO2/tick| CO2
-    Carnivore[Carnivore Insects] -->|Consumes: -1 O2/tick| O2
-    Carnivore -->|Produces: +1 CO2/tick| CO2
+    Herbivore[Herbivore Insects] -->|Consumes: -1 O2/tick per 10 insects| O2
+    Herbivore -->|Produces: +1 CO2/tick per 10 insects| CO2
+    Carnivore[Carnivore Insects] -->|Consumes: -1 O2/tick per 10 insects| O2
+    Carnivore -->|Produces: +1 CO2/tick per 10 insects| CO2
     
     %% Per-Cell Resources
     WaterCell[Water Cell: Per-Cell
@@ -41,6 +41,6 @@ Initial: 200 Nutrients] -->|Regeneration: +0.1/tick| Nutrients
     DeadCarnivore[Dead Carnivores] -->|+20 Nutrients| SoilCell
     
     %% Imbalance Effects
-    O2Low[O2 < 10%] -->|Effect| Insects
-    CO2High[CO2 > 90%] -->|Effect| Plants
+    O2Low[O2 < 10] -->|Effect| Insects
+    CO2High[CO2 > 90] -->|Effect| Plants
 ```

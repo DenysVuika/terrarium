@@ -24,7 +24,9 @@ flowchart TD
     H15 --> H17[Consume 1 Energy]
     H16 --> H17[Consume 1 Energy]
     H17 --> H18{Reached Plant?}
-    H18 -->|Yes, First Insect| H19[Consume Plant: +5 Energy, Plant Dies]
+    H18 -->|Yes| H18A{Consume Succeeds? 80%}
+    H18A -->|Yes| H19[Consume Plant: +5 Energy, Plant Dies]
+    H18A -->|No| H12
     H18 -->|No| H12
     H19 --> H20{Energy >= 10?}
     H20 -->|Yes| H21[Can Reproduce]

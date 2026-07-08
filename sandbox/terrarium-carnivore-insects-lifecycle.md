@@ -29,11 +29,11 @@ flowchart TD
     
     %% Attack Mechanics
     C16 --> C19[Attack: -3 AP]
-    C19 --> C20{Herbivore Flees? 20% Chance}
-    C20 -->|Yes| C21[Flee Fails: Continue Attack]
-    C20 -->|No| C22[Herbivore Escapes: 1 Cell Away]
+    C19 --> C20{Herbivore Escapes? 20% Chance}
+    C20 -->|Yes| C22[Herbivore Escapes: 1 Cell Away]
+    C20 -->|No| C21[Attack Resolves]
     C22 --> C22A{Steps Remaining?}
-    C22A -->|Yes| C22B[Chase: -1 Step]
+    C22A -->|Yes| C22B[Chase Once: -1 Step]
     C22A -->|No| C12
     C22B --> C23[Reach Herbivore?]
     C23 -->|Yes| C16
@@ -41,7 +41,7 @@ flowchart TD
     C21 --> C24[Deal Damage: -2 Energy to Herbivore]
     C24 --> C25{Herbivore Energy <= 0?}
     C25 -->|Yes| C26[Herbivore Dies: +5 Energy, +5 AP]
-    C25 -->|No| C16
+    C25 -->|No| C12
     
     %% Carnivore vs Carnivore Combat
     C13 --> C27{Carnivore in Visibility?}
@@ -62,7 +62,7 @@ flowchart TD
     C18 --> C37
     C37 --> C38[Consume 1 Step]
     C38 -->|On Soil| C39[Move 1 Cell]
-    C38 -->|On Sand| C40[Move 0.5 Cell: -1 Extra AP]
+    C38 -->|On Sand| C40[Move 0.5 Cell: -1 AP Terrain Strain]
     C39 --> C12
     C40 --> C12
     
