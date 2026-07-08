@@ -255,6 +255,7 @@ function renderFrame(replayPayload, frameIndex, width, height, playback = {}) {
   overlay(frame.plants, useEmoji ? '🌿' : '*');
   overlay(frame.herbivores, useEmoji ? '🐛' : 'h');
   overlay(frame.carnivores, useEmoji ? '🦂' : 'C');
+  overlay(frame.insectEggs || [], useEmoji ? '🥚' : 'o');
 
   const lines = [];
   lines.push(
@@ -264,8 +265,8 @@ function renderFrame(replayPayload, frameIndex, width, height, playback = {}) {
   );
   lines.push(
     useEmoji
-      ? 'Legend: 🟫 soil  🟦 water  🟨 sand  ⬛ empty  🌿 plant  🐛 herbivore  🦂 carnivore'
-      : 'Legend: . soil  ~ water  : sand  [space] empty  * plant  h herbivore  C carnivore',
+      ? 'Legend: 🟫 soil  🟦 water  🟨 sand  ⬛ empty  🌿 plant  🐛 herbivore  🦂 carnivore  🥚 egg'
+      : 'Legend: . soil  ~ water  : sand  [space] empty  * plant  h herbivore  C carnivore  o egg',
   );
   lines.push(
     `Playback: ${playback.isPlaying ? 'auto' : 'manual'} @ ${playback.fps ?? 4} fps`,

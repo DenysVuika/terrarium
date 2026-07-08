@@ -350,8 +350,8 @@ It also includes a **Recent Event History** panel showing event summaries from t
 
 Replay symbol legend:
 
-- ASCII: `.` soil, `~` water, `:` sand, `[space]` empty, `*` plant, `h` herbivore, `C` carnivore
-- Emoji: `🟫` soil, `🟦` water, `🟨` sand, `⬛` empty, `🌿` plant, `🐛` herbivore, `🦂` carnivore
+- ASCII: `.` soil, `~` water, `:` sand, `[space]` empty, `*` plant, `h` herbivore, `C` carnivore, `o` egg
+- Emoji: `🟫` soil, `🟦` water, `🟨` sand, `⬛` empty, `🌿` plant, `🐛` herbivore, `🦂` carnivore, `🥚` egg
 
 ### **Implementation Notes**
 

@@ -168,16 +168,25 @@ class Simulator {
   buildReplayFrame(snapshot) {
     const herbivores = [];
     const carnivores = [];
+    const insectEggs = [];
 
     for (let i = 0; i < this.herbivores.length; i += 1) {
       if (this.herbivores[i].alive) {
-        herbivores.push(this.herbivores[i].cell);
+        const herbivore = this.herbivores[i];
+        herbivores.push(herbivore.cell);
+        if (herbivore.stage === 'egg') {
+          insectEggs.push(herbivore.cell);
+        }
       }
     }
 
     for (let i = 0; i < this.carnivores.length; i += 1) {
       if (this.carnivores[i].alive) {
-        carnivores.push(this.carnivores[i].cell);
+        const carnivore = this.carnivores[i];
+        carnivores.push(carnivore.cell);
+        if (carnivore.stage === 'egg') {
+          insectEggs.push(carnivore.cell);
+        }
       }
     }
 
@@ -186,6 +195,7 @@ class Simulator {
       plants: Array.from(this.plants.keys()),
       herbivores,
       carnivores,
+      insectEggs,
       events: this.currentTickEvents.slice(0, 12),
     };
   }
