@@ -2,8 +2,6 @@
 
 ---
 
-![Terrarium](assets/terrarium.png)
-
 ## **📌 Project Overview**
 
 **Goal**: Develop a **closed ecosystem simulation** (Terrarium) where **plants, herbivores, and carnivores** interact in a **2D grid world** (250x250 cells). The simulation must balance **resources (O₂, CO₂, water, nutrients)**, **entity lifecycles**, and **combat mechanics** while allowing for **player interaction** (e.g., toggling a lid).
@@ -17,7 +15,8 @@
 - **Resource Cycles**: Global O₂/CO₂ pools, per-cell water/nutrients.
 - **Player Actions**: Toggle lid (light/evaporation), add water/soil.
 
----
+![Terrarium](assets/terrarium.png)
+
 ---
 
 ## **📜 Core Rules & Mechanics**
