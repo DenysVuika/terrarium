@@ -2,6 +2,8 @@
 
 ---
 
+![Terrarium](assets/terrarium.png)
+
 ## **📌 Project Overview**
 
 **Goal**: Develop a **closed ecosystem simulation** (Terrarium) where **plants, herbivores, and carnivores** interact in a **2D grid world** (250x250 cells). The simulation must balance **resources (O₂, CO₂, water, nutrients)**, **entity lifecycles**, and **combat mechanics** while allowing for **player interaction** (e.g., toggling a lid).
@@ -311,6 +313,10 @@ node src/simulate.js --replay runs/my-seed.json --autoplay --fps 6
 - `--replay latest`: auto-load newest replay JSON under `runs/`
 - `--autoplay`: start replay in autoplay mode
 - `--fps <number>`: autoplay speed in frames/tick-steps per second
+- `--emoji`: start replay in emoji render mode
+- `--ascii`: force ASCII render mode
+- `--auto-fit`: auto-fit replay viewport for emoji mode (default: on)
+- `--no-auto-fit`: disable auto-fit and keep configured preview dimensions
 - `--preview-width <number>`: replay render width (default `64`)
 - `--preview-height <number>`: replay render height (default `24`)
 
@@ -323,7 +329,10 @@ node src/simulate.js --replay runs/my-seed.json --autoplay --fps 6
 - `Down Arrow`: decrease autoplay speed
 - `Home`: jump to first tick
 - `End`: jump to last tick
+- `e`: toggle emoji/ascii mode
 - `q`: quit replay
+
+When auto-fit is enabled, emoji mode uses a smaller viewport by default for better readability.
 
 ### **Replay Timeline Panel**
 
@@ -339,6 +348,11 @@ The replay viewer includes a per-tick timeline section below the ASCII map.
 This helps debug why population and resource curves changed at a specific tick.
 
 It also includes a **Recent Event History** panel showing event summaries from the previous 5 ticks, so you can trace immediate cause/effect without stepping back manually.
+
+Replay symbol legend:
+
+- ASCII: `.` soil, `~` water, `:` sand, `[space]` empty, `*` plant, `h` herbivore, `C` carnivore
+- Emoji: `🟫` soil, `🟦` water, `🟨` sand, `⬛` empty, `🌿` plant, `🐛` herbivore, `🦂` carnivore
 
 ### **Implementation Notes**
 

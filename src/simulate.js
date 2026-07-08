@@ -15,9 +15,13 @@ function parseArgs(argv) {
     recordJsonPath: null,
     recordCsvPath: null,
     autoplay: false,
+    emojiMode: false,
+    autoFit: true,
     replayFps: 4,
     previewWidth: 64,
     previewHeight: 24,
+    previewWidthSet: false,
+    previewHeightSet: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -53,12 +57,22 @@ function parseArgs(argv) {
       }
     } else if (token === '--autoplay') {
       args.autoplay = true;
+    } else if (token === '--emoji') {
+      args.emojiMode = true;
+    } else if (token === '--ascii') {
+      args.emojiMode = false;
+    } else if (token === '--auto-fit') {
+      args.autoFit = true;
+    } else if (token === '--no-auto-fit') {
+      args.autoFit = false;
     } else if (token === '--fps') {
       args.replayFps = Number(argv[++i]);
     } else if (token === '--preview-width') {
       args.previewWidth = Number(argv[++i]);
+      args.previewWidthSet = true;
     } else if (token === '--preview-height') {
       args.previewHeight = Number(argv[++i]);
+      args.previewHeightSet = true;
     }
   }
 
@@ -187,18 +201,43 @@ function terrainChar(value) {
   return ' ';
 }
 
+function terrainEmoji(value) {
+  if (value === 0) return '🟫';
+  if (value === 1) return '🟦';
+  if (value === 2) return '🟨';
+  return '⬛';
+}
+
+function resolveReplayViewport(config, emojiMode) {
+  const baseWidth = Math.max(24, config.previewWidth);
+  const baseHeight = Math.max(10, config.previewHeight);
+
+  if (
+    config.autoFit &&
+    emojiMode &&
+    !config.previewWidthSet &&
+    !config.previewHeightSet
+  ) {
+    return { width: 40, height: 12 };
+  }
+
+  return { width: baseWidth, height: baseHeight };
+}
+
 function renderFrame(replayPayload, frameIndex, width, height, playback = {}) {
   const replay = replayPayload.replay;
   const frame = replay.frames[frameIndex];
   const size = replay.size;
   const map = new Array(width * height).fill(' ');
+  const useEmoji = Boolean(playback.emojiMode);
+  const terrainSymbol = useEmoji ? terrainEmoji : terrainChar;
 
   for (let py = 0; py < height; py += 1) {
     for (let px = 0; px < width; px += 1) {
       const worldX = Math.floor((px / width) * size);
       const worldY = Math.floor((py / height) * size);
       const worldIndex = worldY * size + worldX;
-      map[py * width + px] = terrainChar(replay.terrain[worldIndex]);
+      map[py * width + px] = terrainSymbol(replay.terrain[worldIndex]);
     }
   }
 
@@ -213,9 +252,9 @@ function renderFrame(replayPayload, frameIndex, width, height, playback = {}) {
     }
   };
 
-  overlay(frame.plants, '*');
-  overlay(frame.herbivores, 'h');
-  overlay(frame.carnivores, 'C');
+  overlay(frame.plants, useEmoji ? '🌿' : '*');
+  overlay(frame.herbivores, useEmoji ? '🐛' : 'h');
+  overlay(frame.carnivores, useEmoji ? '🦂' : 'C');
 
   const lines = [];
   lines.push(
@@ -224,13 +263,16 @@ function renderFrame(replayPayload, frameIndex, width, height, playback = {}) {
       `P=${frame.plants.length} H=${frame.herbivores.length} C=${frame.carnivores.length}`,
   );
   lines.push(
-    'Legend: . soil  ~ water  : sand  * plant  h herbivore  C carnivore',
+    useEmoji
+      ? 'Legend: 🟫 soil  🟦 water  🟨 sand  ⬛ empty  🌿 plant  🐛 herbivore  🦂 carnivore'
+      : 'Legend: . soil  ~ water  : sand  [space] empty  * plant  h herbivore  C carnivore',
   );
   lines.push(
     `Playback: ${playback.isPlaying ? 'auto' : 'manual'} @ ${playback.fps ?? 4} fps`,
   );
+  lines.push(`Render mode: ${useEmoji ? 'emoji' : 'ascii'}`);
   lines.push(
-    'Controls: Left/Right step, Space autoplay, Up/Down speed, Home/End jump, q quits.',
+    'Controls: Left/Right step, Space autoplay, Up/Down speed, Home/End jump, e mode, q quits.',
   );
   lines.push('');
 
@@ -288,11 +330,28 @@ function renderFrame(replayPayload, frameIndex, width, height, playback = {}) {
 function startReplayInteractive(replayPayload, width, height, options = {}) {
   let index = 0;
   let isPlaying = Boolean(options.autoplay);
+  let emojiMode = Boolean(options.emojiMode);
   let fps = Math.max(1, Number(options.fps) || 4);
   let timer = null;
+  const asciiViewport = {
+    width,
+    height,
+  };
+  const emojiViewport = options.autoFit
+    ? {
+        width: Math.min(width, 40),
+        height: Math.min(height, 12),
+      }
+    : asciiViewport;
+  let renderWidth = emojiMode ? emojiViewport.width : asciiViewport.width;
+  let renderHeight = emojiMode ? emojiViewport.height : asciiViewport.height;
 
   const draw = () => {
-    renderFrame(replayPayload, index, width, height, { isPlaying, fps });
+    renderFrame(replayPayload, index, renderWidth, renderHeight, {
+      isPlaying,
+      fps,
+      emojiMode,
+    });
   };
 
   const stopAuto = () => {
@@ -355,6 +414,13 @@ function startReplayInteractive(replayPayload, width, height, options = {}) {
       } else {
         startAuto();
       }
+      draw();
+      return;
+    }
+    if (key === 'e' || key === 'E') {
+      emojiMode = !emojiMode;
+      renderWidth = emojiMode ? emojiViewport.width : asciiViewport.width;
+      renderHeight = emojiMode ? emojiViewport.height : asciiViewport.height;
       draw();
       return;
     }
@@ -457,13 +523,16 @@ function main() {
   if (config.replayPath) {
     const replayFilePath = resolveReplayPath(config.replayPath);
     const replayPayload = loadReplay(replayFilePath);
+    const viewport = resolveReplayViewport(config, config.emojiMode);
     console.log(`Replay file: ${replayFilePath}`);
     startReplayInteractive(
       replayPayload,
-      Math.max(24, config.previewWidth),
-      Math.max(10, config.previewHeight),
+      viewport.width,
+      viewport.height,
       {
         autoplay: config.autoplay,
+        emojiMode: config.emojiMode,
+        autoFit: config.autoFit,
         fps: config.replayFps,
       },
     );
