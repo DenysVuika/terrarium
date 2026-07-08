@@ -1,48 +1,32 @@
+# Terrarium Grid System
+
 ```mermaid
 flowchart TD
-    %% Grid System Overview
     A[Grid: 250x250 Cells] --> B[Cell Types]
-    B --> C[Soil: 200 Nutrients, +0.1/tick]
-    B --> D[Water: 100 Water, -0.1/tick Evaporation]
-    B --> E[Sand: No Resources, Slows Movement]
+    B --> C[Soil: Nutrients 200, Regen +0.1/tick]
+    B --> D[Water: Water 100, Seepage Source]
+    B --> E[Sand: Walkable, Higher Move Cost]
     B --> F[Empty: Default]
-    
-    %% Patches
-    G[Patches: Connected Cells] --> H[Soil Patch: Multiple Cells]
-    G --> I[Water Patch: Multiple Cells]
-    G --> J[Sand Patch: Multiple Cells]
-    
-    %% Adjacency Rules
-    K[Adjacency: 4-Directional] --> L[Up]
-    K --> M[Down]
-    K --> N[Left]
-    K --> O[Right]
-    
-    %% Entity Placement
-    P[Plants] --> Q[Can Only Grow on Soil]
-    R[Herbivores] --> S[Can Move on Soil/Sand]
-    T[Carnivores] --> U[Can Move on Soil/Sand]
-    
-    %% Lid Mechanic
-    V[Lid: Open] --> W[Light: 100%]
-    V --> X[Evaporation: ON]
-    Y[Lid: Closed] --> Z[Light: 50%]
-    Y --> AA[Evaporation: OFF]
-    
-    %% Resource Access
-    AB[Plants] --> AC[Consume Nutrients from Soil Cell]
-    AD[Insects] --> AE[Drink Water from Adjacent Water Cell]
-    
-    %% Movement Costs
-    AF[Herbivores on Soil] --> AG[1 Step = 1 Cell]
-    AF --> AH[1 Energy/Step]
-    AI[Herbivores on Sand] --> AJ[2 Steps = 1 Cell]
-    AI --> AK[1 Energy/Step]
-    
-    AL[Carnivores on Soil] --> AM[1 Step = 1 Cell]
-    AL --> AN[1 Energy/Step]
-    AO[Carnivores on Sand] --> AP[2 Steps = 1 Cell]
-    AO --> AQ[1 Energy/Step]
+
+    G[Patches: Connected Terrain Regions] --> H[Soil / Water / Sand Blobs]
+
+    I[Adjacency Rules] --> J[Plants: 4-neighbor spread]
+    I --> K[Insects: 8-neighbor move/drink/combat]
+
+    L[Lid State] --> M[Open: Light 100, Evaporation -0.16]
+    L --> N[Closed: Light 50, No Evaporation]
+
+    O[Water Dynamics] --> P[Rain: +8 at 11%/tick]
+    O --> Q[Drought: -3 at 4%/tick]
+    O --> R[Water tile seepage: +1.2/tick]
+    O --> S[Adjacent seepage: +0.35 per 4-neighbor water tile]
+
+    T[Insect Movement Model] --> U[Step-charge +1.2/tick, cap 2.5]
+    U --> V[Soil step cost: 1.0]
+    U --> W[Sand step cost: 1.5]
+
+    X[Move Energy Cost] --> Y[Herbivore: -1 per move]
+    X --> Z[Carnivore: -0.7 per move]
 ```
 
 Note: If this diagram conflicts with prose mechanics, use README Section 7 (Canonical Conflict-Resolution Rules) as the source of truth.

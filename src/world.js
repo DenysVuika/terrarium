@@ -43,6 +43,27 @@ class World {
     return out;
   }
 
+  neighbors8(index) {
+    const { x, y } = this.coords(index);
+    const out = [];
+
+    for (let dy = -1; dy <= 1; dy += 1) {
+      for (let dx = -1; dx <= 1; dx += 1) {
+        if (dx === 0 && dy === 0) {
+          continue;
+        }
+
+        const nx = x + dx;
+        const ny = y + dy;
+        if (this.inBounds(nx, ny)) {
+          out.push(this.index(nx, ny));
+        }
+      }
+    }
+
+    return out;
+  }
+
   generateTerrain() {
     this.terrain.fill(TERRAIN.EMPTY);
 

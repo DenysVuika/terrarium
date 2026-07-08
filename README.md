@@ -30,7 +30,9 @@
   - **Sand**: No resources, **slows movement by 50%**.
   - **Empty**: Default.
 - **Patches**: Connected cells of the same type (irregular shapes).
-- **Adjacency**: 4-directional (up/down/left/right).
+- **Adjacency**:
+  - Plants spread to 4-directional neighbors.
+  - Insect movement, drinking, hunting, and combat use 8-directional neighbors.
 - **Lid Mechanic**:
   - **Open**: Light = 100%, evaporation = ON.
   - **Closed**: Light = 50%, evaporation = OFF.
@@ -60,22 +62,25 @@
 
 ### **3. Herbivores**
 
-- **Aging**: Egg → Larva (1 tick) → Adult (1 tick).
+- **Aging**: Egg (4 ticks) → Larva (2 ticks) → Adult.
 - **Energy**:
   - **Passive Loss**: -0.1/tick.
+  - **No nearby drinkable water**: -0.5 energy/tick.
   - **Starvation**: Die if energy ≤ 0 for 3 ticks.
 - **Movement**:
-  - **Soil**: 1 cell/step, -1 energy.
-  - **Sand**: 2 steps = 1 cell, -1 energy.
+  - Uses a step-charge model (recharge +1.2/tick, cap 2.5).
+  - **Soil**: cost 1.0 step-charge, -1 energy.
+  - **Sand**: cost 1.5 step-charge, -1 energy.
+  - Roaming uses anti-backtrack bias to reduce oscillation.
 - **Eating**:
-  - **Targeting**: Scan within a 5x5 visibility area and move toward nearest plant.
+  - **Targeting**: Scan within radius 2 and move toward nearest plant.
   - **Consume Plant**: +5 energy (80% success if adjacent).
 - **Fleeing**:
   - **20% chance to escape** carnivore attacks.
-  - **Cost**: -1 energy, move 1 cell away.
+  - **Cost**: -1 energy, move 1 cell away (8-directional).
 - **Reproduction**:
-  - **Conditions**: Energy ≥ 10, adjacent empty cell.
-  - **Cost**: -3 energy, cooldown 5 ticks.
+  - **Conditions**: Energy ≥ 14, cooldown 16, 20% chance, adjacent empty walkable cell.
+  - **Cost**: -6 energy.
 
 **🔗 Diagram**: [Terrarium: Herbivore Insects Lifecycle](sandbox/terrarium-herbivore-insects-lifecycle.md)
 
@@ -83,33 +88,37 @@
 
 ### **4. Carnivores**
 
-- **Aging**: Egg → Larva (1 tick) → Adult (1 tick).
+- **Aging**: Egg (2 ticks) → Larva (1 tick) → Adult.
 - **Energy**:
-  - **Passive Loss**: -0.1/tick.
+  - **Passive Loss**: -0.05/tick.
+  - **No nearby drinkable water**: -0.2 energy/tick.
   - **Starvation**: Die if energy ≤ 0 for 3 ticks.
 - **Attack Points (AP)**:
   - **Max**: 10.
   - **Regeneration**: +1/tick (passive).
   - **Death**: AP resets to 0.
 - **Movement**:
-  - **Soil**: 1 cell/step, -1 energy.
-  - **Sand**: 2 steps = 1 cell, -1 energy and -1 AP (terrain strain).
+  - Uses same step-charge model as herbivores.
+  - **Soil**: cost 1.0 step-charge, -0.7 energy.
+  - **Sand**: cost 1.5 step-charge, -0.7 energy, and -1 AP (terrain strain).
 - **Combat**:
   - **Attack Cost**: 3 AP.
   - **Per-Turn Action Cap**: 1 attack action per tick, plus at most 1 chase.
   - **Herbivore Hunt**:
     - 20% chance herbivore escapes (flees 1 cell); otherwise attack resolves.
-    - If caught: -2 energy to herbivore. If herbivore dies: +5 energy, +5 AP.
+    - If caught: -2 energy to herbivore. If herbivore dies: +7 energy, +5 AP.
+    - Hunt targeting radius: 4 cells.
   - **Carnivore vs. Carnivore**:
-    - Turn-based: Both lose -2 energy per attack.
-    - If AP ≤ 0: Retreat.
-    - If energy ≤ 0: Die, winner gains +5 energy, +5 AP.
+    - Opportunistic (not mandatory): only when adjacent, AP >= 3, energy >= 9, and 12% chance.
+    - Both lose -2 energy per fight exchange.
+    - If rival dies: winner gains +5 energy, +5 AP.
   - **Chasing**:
-    - If herbivore flees, carnivore can **chase once per turn** (1 step).
-    - If herbivore escapes to sand: Chase costs **2 steps**.
+    - If herbivore flees, carnivore can chase once per turn (1 step).
+  - **No-prey rest behavior**:
+    - When no target herbivore is found, carnivore rests with 65% chance and recovers +0.12 energy.
 - **Reproduction**:
-  - **Conditions**: Energy ≥ 15, adjacent empty cell.
-  - **Cost**: -5 energy, cooldown 5 ticks, AP = 0.
+  - **Conditions**: Energy ≥ 18, cooldown 16, 18% chance, adjacent empty walkable cell.
+  - **Cost**: -7 energy, AP = 0.
 
 **🔗 Diagram**: [Terrarium: Carnivore Insects Lifecycle](sandbox/terrarium-carnivore-insects-lifecycle.md)
 
@@ -132,10 +141,12 @@
 #### **Per-Cell Resources**
 
 - **Water**:
-  - **Rain**: +10/cell (10% chance/tick).
-  - **Drought**: -5/cell (5% chance/tick).
-  - **Evaporation**: -0.1/tick (if lid is open).
-  - **Insect Drinking**: -0.5 from adjacent water cell.
+  - **Rain**: +8/cell (11% chance/tick).
+  - **Drought**: -3/cell (4% chance/tick).
+  - **Evaporation**: -0.16/tick (if lid is open).
+  - **Seepage from water terrain**: water cells receive +1.2/tick baseline moisture.
+  - **Adjacent seepage**: non-water cells gain +0.35 per 4-neighbor water cell.
+  - **Insect Drinking**: -0.5 from nearby (8-neighbor) water cell.
 - **Nutrients**:
   - **Soil Regeneration**: +0.1/tick/cell.
   - **Depletion**: If <10 in a cell, plants wilt.
@@ -151,9 +162,7 @@
 
 1. **Day/Night Cycle**: Toggle light (day: 100%, night: 0%).
 2. **Weather**: Roll for rain/drought.
-3. **Resource Regeneration**:
-   - Soil: +0.1 nutrients/cell.
-   - Water: -0.1/cell (evaporation if lid is open).
+3. **Resource Regeneration**: Soil +0.1 nutrients/cell, and water updates from weather + evaporation + seepage.
 4. **Entity Actions**:
    - **Plants**: Grow, reproduce, or wilt/die.
    - **Insects**: Move, eat, reproduce, fight, or die.
@@ -175,9 +184,14 @@ Use this section as the source of truth if any diagram and prose disagree.
 
 | Rule Area | Canonical Rule |
 | --- | --- |
-| Carnivore on sand | 2 steps = 1 cell, -1 energy and -1 AP |
+| Adjacency model | Plants spread in 4-neighborhood; insect interactions use 8-neighborhood |
+| Movement model | Step-charge based; sand step-cost is 1.5 for both insect types |
+| Carnivore on sand | -0.7 energy move cost and -1 AP |
 | Herbivore flee roll | 20% escape success; 80% attack resolves |
 | Carnivore turn economy | Max 1 attack action and 1 chase per tick |
+| Insect lifecycle | Herbivore egg/larva: 4/2 ticks; carnivore egg/larva: 2/1 ticks |
+| Herbivore breeding gate | Energy >= 14, cooldown 16, chance 20%, cost 6 |
+| Carnivore breeding gate | Energy >= 18, cooldown 16, chance 18%, cost 7 |
 | Plant growth light threshold | Growth allowed at light >= 50 |
 | Decay rewards | Plant: +50 nutrients; insect: +20 nutrients |
 | Gas bounds | O₂/CO₂ are clamped to 0-100 each tick |
@@ -259,6 +273,8 @@ The repository now includes an executable prototype simulator in `src/`.
 ```bash
 npm run simulate
 ```
+
+The single-run summary now includes a **Diagnostics** block with births, deaths, predation/rival kills, and egg visibility statistics.
 
 - Sweep 5 seeds:
 

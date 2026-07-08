@@ -469,9 +469,27 @@ function startReplayInteractive(replayPayload, width, height, options = {}) {
   stdin.on('data', onKey);
 }
 
+function collectRunDiagnostics(result) {
+  const history = Array.isArray(result.history) ? result.history : [];
+  const eggFramesAfter10 = history.filter(
+    (s) => s.tick >= 10 && Number(s.eggs || 0) > 0,
+  ).length;
+  const maxEggs = history.reduce(
+    (max, s) => Math.max(max, Number(s.eggs || 0)),
+    0,
+  );
+
+  return {
+    eggFramesAfter10,
+    maxEggs,
+  };
+}
+
 function printRun(result) {
   const start = result.history[0] || result.finalState;
   const end = result.finalState;
+  const diagnostics = result.diagnostics || {};
+  const derived = collectRunDiagnostics(result);
 
   console.log('Simulation summary');
   console.log('------------------');
@@ -485,6 +503,20 @@ function printRun(result) {
   console.log(`Herbivores: ${start.herbivores} -> ${end.herbivores}`);
   console.log(`Carnivores: ${start.carnivores} -> ${end.carnivores}`);
   console.log(`Avg water: ${start.avgWater} -> ${end.avgWater}`);
+  console.log('Diagnostics');
+  console.log('-----------');
+  console.log(
+    `Births H/C: ${diagnostics.herbivoreBirths ?? 0} / ${diagnostics.carnivoreBirths ?? 0}`,
+  );
+  console.log(
+    `Deaths H/C: ${diagnostics.herbivoreDeaths ?? 0} / ${diagnostics.carnivoreDeaths ?? 0}`,
+  );
+  console.log(
+    `Predation kills: ${diagnostics.herbivoreKillsByCarnivores ?? 0} (rival carnivore kills: ${diagnostics.carnivoreKillsByCarnivores ?? 0})`,
+  );
+  console.log(
+    `Egg visibility: frames>=10 with eggs=${derived.eggFramesAfter10}, max eggs in a tick=${derived.maxEggs}`,
+  );
 }
 
 function runSweep(baseConfig) {

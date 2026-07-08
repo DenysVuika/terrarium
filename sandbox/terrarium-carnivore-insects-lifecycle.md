@@ -1,82 +1,57 @@
+# Terrarium Carnivore Insects Lifecycle
+
 ```mermaid
 flowchart TD
     direction TB
-    %% Carnivore Insects
-    C1[Carnivore: Egg] -->|Age +1| C2[Carnivore: Larva]
-    C2 -->|Age +1| C3[Carnivore: Adult]
-    C3 -->|Age +1| C4{Max Age Reached?}
-    C4 -->|Yes| C5[Die of Old Age: +20 Nutrients, AP = 0]
-    C4 -->|No| C6{Has Enough O2/Water?}
-    C6 -->|No| C7[Die: +20 Nutrients, AP = 0]
-    C6 -->|Yes| C8[Check Energy]
-    C8 --> C9{Energy > 0?}
-    C9 -->|No| C10[Starvation Timer +1]
-    C10 --> C11{Starvation Timer >= 3?}
-    C11 -->|Yes| C7
-    C11 -->|No| C8
-    C9 -->|Yes| C12[Start Turn: 1 Step Available]
-    
-    %% AP Regeneration
-    C12 --> C12A[Regenerate +2 AP: Max 10]
-    C12A --> C13[Determine Visibility: 5x5 Grid]
-    
-    %% Movement and Actions
-    C13 --> C14{Herbivore in Visibility?}
-    C14 -->|Yes| C15{AP >= 3?}
-    C15 -->|Yes| C16[Initiate Attack]
-    C15 -->|No| C17[Move Toward Herbivore]
-    C14 -->|No| C18[Move Randomly]
-    
-    %% Attack Mechanics
-    C16 --> C19[Attack: -3 AP]
-    C19 --> C20{Herbivore Escapes? 20% Chance}
-    C20 -->|Yes| C22[Herbivore Escapes: 1 Cell Away]
-    C20 -->|No| C21[Attack Resolves]
-    C22 --> C22A{Steps Remaining?}
-    C22A -->|Yes| C22B[Chase Once: -1 Step]
-    C22A -->|No| C12
-    C22B --> C23[Reach Herbivore?]
-    C23 -->|Yes| C16
-    C23 -->|No| C12
-    C21 --> C24[Deal Damage: -2 Energy to Herbivore]
-    C24 --> C25{Herbivore Energy <= 0?}
-    C25 -->|Yes| C26[Herbivore Dies: +5 Energy, +5 AP]
-    C25 -->|No| C12
-    
-    %% Carnivore vs Carnivore Combat
-    C13 --> C27{Carnivore in Visibility?}
-    C27 -->|Yes| C28{AP >= 3?}
-    C28 -->|Yes| C29[Initiate Attack]
-    C28 -->|No| C17
-    C29 --> C30[Attack: -3 AP]
-    C30 --> C31[Defender Counter-Attacks: -3 AP]
-    C31 --> C32[Deal Damage: -2 Energy to Both]
-    C32 --> C33{Attacker AP <= 0?}
-    C33 -->|Yes| C34[Attacker Retreats]
-    C33 -->|No| C35{Defender AP <= 0?}
-    C35 -->|Yes| C36[Defender Retreats: Attacker Wins +5 Energy, +5 AP]
-    C35 -->|No| C29
-    
-    %% Movement
-    C17 --> C37[Consume 1 Energy]
-    C18 --> C37
-    C37 --> C38[Consume 1 Step]
-    C38 -->|On Soil| C39[Move 1 Cell]
-    C38 -->|On Sand| C40[Move 0.5 Cell: -1 AP Terrain Strain]
-    C39 --> C12
-    C40 --> C12
-    
-    %% Passive Energy Loss
-    C12 --> C41[Passive: -0.1 Energy]
-    
-    %% O2/CO2 Imbalance
-    C6 -->|O2 < 10%| C42[Lose -1 Energy]
-    
-    %% Reproduction
-    C12 --> C43{Energy >= 15?}
-    C43 -->|Yes| C44[Can Reproduce]
-    C43 -->|No| C12
-    C44 --> C45{Space Available?}
-    C45 -->|Yes| C46[Lay Egg: -5 Energy, Cooldown 5 Ticks, AP = 0]
-    C45 -->|No| C12
+    C1[Egg] -->|2 ticks| C2[Larva]
+    C2 -->|1 tick| C3[Adult]
+
+    C3 --> C4[Passive: energy -0.05, AP +1]
+    C4 --> C5{Nearby drinkable water in 8-neighborhood?}
+    C5 -->|Yes| C6[Drink: remove 0.5 water]
+    C5 -->|No| C7[Dehydration penalty: -0.2 energy]
+
+    C6 --> C8{Adjacent herbivore and AP >= 3?}
+    C7 --> C8
+
+    C8 -->|Yes| C9[Attack herbivore: AP -3]
+    C9 --> C10{Herbivore flees? 20%}
+    C10 -->|Yes| C11[Herbivore flees; carnivore can chase once]
+    C10 -->|No| C12[Apply damage -2]
+    C12 --> C13{Prey dies?}
+    C13 -->|Yes| C14[Gain +7 energy and +5 AP]
+    C13 -->|No| C15[Continue]
+
+    C8 -->|No| C16{Nearest herbivore within radius 4?}
+    C16 -->|Yes| C17[Move toward prey]
+    C16 -->|No| C18{Rest roll 65%?}
+    C18 -->|Yes| C19[Rest and recover +0.12 energy]
+    C18 -->|No| C20[Roam randomly]
+
+    C17 --> C21[Move cost: step 1.0 soil or 1.5 sand]
+    C20 --> C21
+    C21 --> C22[Energy -0.7 per move]
+    C22 --> C23{Moved on sand?}
+    C23 -->|Yes| C24[AP -1 terrain strain]
+    C23 -->|No| C25[No AP terrain penalty]
+
+    C25 --> C26{Rival fight check}
+    C24 --> C26
+    C26 -->|Adjacent rival, AP >= 3, Energy >= 9, 12% chance| C27[Fight: both lose 2 energy]
+    C26 -->|Otherwise| C28[Skip rival fight]
+
+    C27 --> C29{Rival dies?}
+    C29 -->|Yes| C30[Gain +5 energy and +5 AP]
+    C29 -->|No| C31[No kill bonus]
+
+    C30 --> C32{Reproduction gate passes?<br/>Energy >= 18, cooldown 0, chance 18%}
+    C31 --> C32
+    C28 --> C32
+    C32 -->|Yes and spawn space available| C33[Lay egg: energy -7, cooldown 16, AP = 0]
+    C32 -->|No| C34[No reproduction]
+
+    C33 --> C35{Starvation >= 3 or age >= max?}
+    C34 --> C35
+    C35 -->|Yes| C36[Die: +20 nutrients, AP = 0]
+    C35 -->|No| C3
 ```
