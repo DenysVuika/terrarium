@@ -125,9 +125,16 @@ class Simulator {
     return false;
   }
 
-  run() {
+  run(options = {}) {
+    const captureFrames = Boolean(options.captureFrames);
+    const initialState = this.snapshot();
+    const frames = captureFrames ? [this.buildReplayFrame(initialState)] : null;
+
     while (!this.outcome && this.tick < this.config.ticks) {
       this.step();
+      if (captureFrames) {
+        frames.push(this.buildReplayFrame(this.history[this.history.length - 1]));
+      }
     }
 
     if (!this.outcome && this.tick >= this.config.ticks) {
@@ -141,8 +148,42 @@ class Simulator {
       config: this.config,
       outcome: this.outcome,
       finalTick: this.tick,
+      initialState,
       finalState: this.snapshot(),
       history: this.history,
+      replay: captureFrames
+        ? {
+            version: 1,
+            generatedAt: new Date().toISOString(),
+            size: this.world.size,
+            terrain: Array.from(this.world.terrain),
+            frames,
+          }
+        : null,
+    };
+  }
+
+  buildReplayFrame(snapshot) {
+    const herbivores = [];
+    const carnivores = [];
+
+    for (let i = 0; i < this.herbivores.length; i += 1) {
+      if (this.herbivores[i].alive) {
+        herbivores.push(this.herbivores[i].cell);
+      }
+    }
+
+    for (let i = 0; i < this.carnivores.length; i += 1) {
+      if (this.carnivores[i].alive) {
+        carnivores.push(this.carnivores[i].cell);
+      }
+    }
+
+    return {
+      ...snapshot,
+      plants: Array.from(this.plants.keys()),
+      herbivores,
+      carnivores,
     };
   }
 
@@ -716,9 +757,9 @@ class Simulator {
   }
 }
 
-function runSimulation(config) {
+function runSimulation(config, options = {}) {
   const simulator = new Simulator(config);
-  return simulator.run();
+  return simulator.run(options);
 }
 
 module.exports = {

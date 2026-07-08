@@ -4,7 +4,8 @@
   "private": true,
   "description": "Prototype ecosystem simulation for terrarium mechanics",
   "scripts": {
-    "simulate": "node src/simulate.js",
-    "simulate:sweep": "node src/simulate.js --sweep"
+    "simulate": "node src/simulate.js --record-csv runs/latest.csv --record-json runs/latest.json",
+    "simulate:sweep": "node src/simulate.js --sweep",
+    "simulate:replay": "node src/simulate.js --replay latest"
   }
 }

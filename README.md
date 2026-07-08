@@ -253,7 +253,7 @@ The repository now includes an executable prototype simulator in `src/`.
 ### **Run Commands**
 
 - Install/runtime: Node.js 18+ (no external dependencies).
-- Single run (100 ticks):
+- Single run (100 ticks) and automatically save replay artifacts to `runs/latest.csv` and `runs/latest.json`:
 
 ```bash
 npm run simulate
@@ -271,6 +271,30 @@ npm run simulate:sweep
 node src/simulate.js --ticks 100 --seed my-seed --plants 1800 --herbivores 180 --carnivores 70 --lid open
 ```
 
+- Record per-tick CSV + replay JSON:
+
+```bash
+node src/simulate.js --ticks 100 --seed my-seed --record-csv runs/my-seed.csv --record-json runs/my-seed.json
+```
+
+- Replay latest run with keyboard navigation:
+
+```bash
+npm run simulate:replay
+```
+
+- Replay a specific file:
+
+```bash
+node src/simulate.js --replay runs/my-seed.json
+```
+
+- Replay with autoplay enabled on startup:
+
+```bash
+node src/simulate.js --replay runs/my-seed.json --autoplay --fps 6
+```
+
 ### **CLI Options**
 
 - `--ticks <number>`: total ticks (default `100`)
@@ -281,13 +305,38 @@ node src/simulate.js --ticks 100 --seed my-seed --plants 1800 --herbivores 180 -
 - `--carnivores <number>`: initial carnivore count
 - `--lid <open|closed>`: lid state
 - `--sweep`: run fixed 5-seed stability sweep
+- `--record-csv <path>`: write per-tick aggregate metrics CSV
+- `--record-json <path>`: write full replay JSON (terrain + entity positions per tick)
+- `--replay <path>`: launch interactive replay from recorded JSON
+- `--replay latest`: auto-load newest replay JSON under `runs/`
+- `--autoplay`: start replay in autoplay mode
+- `--fps <number>`: autoplay speed in frames/tick-steps per second
+- `--preview-width <number>`: replay render width (default `64`)
+- `--preview-height <number>`: replay render height (default `24`)
+
+### **Replay Controls**
+
+- `Left Arrow`: previous tick
+- `Right Arrow`: next tick
+- `Space`: toggle autoplay on/off
+- `Up Arrow`: increase autoplay speed
+- `Down Arrow`: decrease autoplay speed
+- `q`: quit replay
 
 ### **Implementation Notes**
 
 - Source files:
   - `src/world.js`: grid generation, terrain patches, per-cell resources
   - `src/simulator.js`: game loop, resources, entities, combat, win/lose checks
-  - `src/simulate.js`: CLI entry point
+  - `src/simulate.js`: CLI entry point, CSV/JSON recording, interactive replay
+
+### **Recording Format Guidance**
+
+- **CSV** is lightweight and ideal for charting metrics over time.
+  - Contains aggregated per-tick values (O2, CO2, populations, water metrics).
+- **JSON replay** is richer and designed for deterministic console playback.
+  - Contains world terrain and per-tick entity positions.
+  - File size is larger than CSV but enables interactive tick navigation.
 
 ---
 
