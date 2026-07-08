@@ -222,14 +222,14 @@
 
 ### **🔗 Quick Links to Diagrams**
 
- |  System               | Canvas Link                                  |
- |----------------------|---------------------------------------------|
- | Grid System          | [terrarium-grid-system](sandbox/terrarium-grid-system.md)       |
- | Plants Lifecycle     | [terrarium-plants-lifecycle](sandbox/terrarium-plants-lifecycle.md) |
- | Herbivore Lifecycle  | [terrarium-herbivore-insects-lifecycle](sandbox/terrarium-herbivore-insects-lifecycle.md) |
- | Carnivore Lifecycle  | [terrarium-carnivore-insects-lifecycle](sandbox/terrarium-carnivore-insects-lifecycle.md) |
- | Resource Cycle       | [terrarium-resource-cycle](sandbox/terrarium-resource-cycle.md) |
- | Main Game Loop       | [terrarium-main-game-loop](sandbox/terrarium-main-game-loop.md) |
+|  System              | Canvas Link                                 |
+|----------------------|---------------------------------------------|
+| Grid System          | [terrarium-grid-system](sandbox/terrarium-grid-system.md)       |
+| Plants Lifecycle     | [terrarium-plants-lifecycle](sandbox/terrarium-plants-lifecycle.md) |
+| Herbivore Lifecycle  | [terrarium-herbivore-insects-lifecycle](sandbox/terrarium-herbivore-insects-lifecycle.md) |
+| Carnivore Lifecycle  | [terrarium-carnivore-insects-lifecycle](sandbox/terrarium-carnivore-insects-lifecycle.md) |
+| Resource Cycle       | [terrarium-resource-cycle](sandbox/terrarium-resource-cycle.md) |
+| Main Game Loop       | [terrarium-main-game-loop](sandbox/terrarium-main-game-loop.md) |
 
 ---
 
