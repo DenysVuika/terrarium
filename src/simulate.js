@@ -223,11 +223,15 @@ function renderFrame(replayPayload, frameIndex, width, height, playback = {}) {
       `O2=${frame.o2.toFixed(2)} CO2=${frame.co2.toFixed(2)}   ` +
       `P=${frame.plants.length} H=${frame.herbivores.length} C=${frame.carnivores.length}`,
   );
-  lines.push('Legend: . soil  ~ water  : sand  * plant  h herbivore  C carnivore');
+  lines.push(
+    'Legend: . soil  ~ water  : sand  * plant  h herbivore  C carnivore',
+  );
   lines.push(
     `Playback: ${playback.isPlaying ? 'auto' : 'manual'} @ ${playback.fps ?? 4} fps`,
   );
-  lines.push('Controls: Left/Right step, Space autoplay, Up/Down speed, Home/End jump, q quits.');
+  lines.push(
+    'Controls: Left/Right step, Space autoplay, Up/Down speed, Home/End jump, q quits.',
+  );
   lines.push('');
 
   for (let py = 0; py < height; py += 1) {
@@ -248,6 +252,33 @@ function renderFrame(replayPayload, frameIndex, width, height, playback = {}) {
     if (tickEvents.length > maxEvents) {
       lines.push(`  - ... ${tickEvents.length - maxEvents} more`);
     }
+  }
+
+  lines.push('');
+  lines.push('Recent Event History (previous ticks):');
+  const historyWindow = 5;
+  const startTickIndex = Math.max(0, frameIndex - historyWindow);
+  let historyPrinted = false;
+
+  for (let i = startTickIndex; i < frameIndex; i += 1) {
+    const historyFrame = replay.frames[i];
+    const historyEvents = Array.isArray(historyFrame.events)
+      ? historyFrame.events
+      : [];
+    if (historyEvents.length === 0) {
+      continue;
+    }
+
+    historyPrinted = true;
+    const preview = historyEvents.slice(0, 3).join(' | ');
+    const suffix = historyEvents.length > 3 ? ' | ...' : '';
+    lines.push(
+      `  t=${String(historyFrame.tick).padStart(3)}: ${preview}${suffix}`,
+    );
+  }
+
+  if (!historyPrinted) {
+    lines.push('  - none');
   }
 
   process.stdout.write('\x1Bc');
@@ -277,15 +308,18 @@ function startReplayInteractive(replayPayload, width, height, options = {}) {
       clearInterval(timer);
     }
     isPlaying = true;
-    timer = setInterval(() => {
-      if (index >= replayPayload.replay.frames.length - 1) {
-        stopAuto();
+    timer = setInterval(
+      () => {
+        if (index >= replayPayload.replay.frames.length - 1) {
+          stopAuto();
+          draw();
+          return;
+        }
+        index += 1;
         draw();
-        return;
-      }
-      index += 1;
-      draw();
-    }, Math.round(1000 / fps));
+      },
+      Math.round(1000 / fps),
+    );
   };
 
   draw();
@@ -424,10 +458,15 @@ function main() {
     const replayFilePath = resolveReplayPath(config.replayPath);
     const replayPayload = loadReplay(replayFilePath);
     console.log(`Replay file: ${replayFilePath}`);
-    startReplayInteractive(replayPayload, Math.max(24, config.previewWidth), Math.max(10, config.previewHeight), {
-      autoplay: config.autoplay,
-      fps: config.replayFps,
-    });
+    startReplayInteractive(
+      replayPayload,
+      Math.max(24, config.previewWidth),
+      Math.max(10, config.previewHeight),
+      {
+        autoplay: config.autoplay,
+        fps: config.replayFps,
+      },
+    );
     return;
   }
 

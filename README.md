@@ -338,6 +338,8 @@ The replay viewer includes a per-tick timeline section below the ASCII map.
 
 This helps debug why population and resource curves changed at a specific tick.
 
+It also includes a **Recent Event History** panel showing event summaries from the previous 5 ticks, so you can trace immediate cause/effect without stepping back manually.
+
 ### **Implementation Notes**
 
 - Source files:
