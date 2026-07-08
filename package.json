@@ -1,0 +1,10 @@
+{
+  "name": "terrarium",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Prototype ecosystem simulation for terrarium mechanics",
+  "scripts": {
+    "simulate": "node src/simulate.js",
+    "simulate:sweep": "node src/simulate.js --sweep"
+  }
+}

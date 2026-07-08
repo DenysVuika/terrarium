@@ -20,3 +20,5 @@ flowchart TD
     K1 -->|Improve| B1
     K1 -->|Worsen| J1
 ```
+
+Note: If this diagram conflicts with prose mechanics, use README Section 7 (Canonical Conflict-Resolution Rules) as the source of truth.

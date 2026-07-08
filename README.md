@@ -158,11 +158,12 @@
    - **Insects**: Move, eat, reproduce, fight, or die.
 5. **Decay**: Process dead entities → add nutrients to soil.
 6. **Win/Lose Check**:
-  - **Lose**:
-    - O₂ < 10 for 3 consecutive ticks, or
-    - CO₂ > 90 for 3 consecutive ticks, or
-    - no water cell has water > 1 for 3 consecutive ticks, or
-    - all plants die, or all insects die.
+
+   - **Lose**:
+     - O₂ < 10 for 3 consecutive ticks, or
+     - CO₂ > 90 for 3 consecutive ticks, or
+     - no water cell has water > 1 for 3 consecutive ticks, or
+     - all plants die, or all insects die.
    - **Win**: Ecosystem survives 100 ticks.
 
 ---
@@ -172,7 +173,7 @@
 Use this section as the source of truth if any diagram and prose disagree.
 
 | Rule Area | Canonical Rule |
-|---|---|
+| --- | --- |
 | Carnivore on sand | 2 steps = 1 cell, -1 energy and -1 AP |
 | Herbivore flee roll | 20% escape success; 80% attack resolves |
 | Carnivore turn economy | Max 1 attack action and 1 chase per tick |
@@ -245,16 +246,89 @@ Use this section as the source of truth if any diagram and prose disagree.
 
 ---
 
+## **🧪 Prototype Simulator (Node.js)**
+
+The repository now includes an executable prototype simulator in `src/`.
+
+### **Run Commands**
+
+- Install/runtime: Node.js 18+ (no external dependencies).
+- Single run (100 ticks):
+
+```bash
+npm run simulate
+```
+
+- Sweep 5 seeds:
+
+```bash
+npm run simulate:sweep
+```
+
+- Custom run:
+
+```bash
+node src/simulate.js --ticks 100 --seed my-seed --plants 1800 --herbivores 180 --carnivores 70 --lid open
+```
+
+### **CLI Options**
+
+- `--ticks <number>`: total ticks (default `100`)
+- `--size <number>`: world width/height (default `250`)
+- `--seed <string>`: deterministic seed
+- `--plants <number>`: initial plant count
+- `--herbivores <number>`: initial herbivore count
+- `--carnivores <number>`: initial carnivore count
+- `--lid <open|closed>`: lid state
+- `--sweep`: run fixed 5-seed stability sweep
+
+### **Implementation Notes**
+
+- Source files:
+  - `src/world.js`: grid generation, terrain patches, per-cell resources
+  - `src/simulator.js`: game loop, resources, entities, combat, win/lose checks
+  - `src/simulate.js`: CLI entry point
+
+---
+
+## **📊 Prototype Baseline Report (2026-07-08)**
+
+### **Single Baseline Run**
+
+- Command: `node src/simulate.js --ticks 100 --seed baseline-1`
+- Outcome: **WIN** (`survived 100 ticks`)
+- Final state: plants `1507`, herbivores `0`, carnivores `5`, O2 `100`, CO2 `0`
+
+### **5-Seed Sweep**
+
+| Seed | Outcome | Final Tick | Plants | Insects | O2 | CO2 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| alpha | win | 100 | 1551 | 3 | 100 | 0 |
+| beta | win | 100 | 1509 | 3 | 100 | 0 |
+| gamma | win | 100 | 1534 | 2 | 100 | 0 |
+| delta | win | 100 | 1570 | 3 | 100 | 0 |
+| epsilon | win | 100 | 1567 | 3 | 100 | 0 |
+
+### **Current Balance Gaps (Expected for Prototype)**
+
+1. **Herbivore collapse**: herbivores consistently go extinct before tick 100.
+2. **Gas saturation**: O2/CO2 clamp to extremes (`100/0`) quickly.
+3. **Water accumulation**: average water trends high in long runs.
+
+These are the primary targets for the next tuning pass.
+
+---
+
 ### **🔗 Quick Links to Diagrams**
 
-|  System              | Canvas Link                                 |
-|----------------------|---------------------------------------------|
-| Grid System          | [terrarium-grid-system](sandbox/terrarium-grid-system.md)       |
-| Plants Lifecycle     | [terrarium-plants-lifecycle](sandbox/terrarium-plants-lifecycle.md) |
-| Herbivore Lifecycle  | [terrarium-herbivore-insects-lifecycle](sandbox/terrarium-herbivore-insects-lifecycle.md) |
-| Carnivore Lifecycle  | [terrarium-carnivore-insects-lifecycle](sandbox/terrarium-carnivore-insects-lifecycle.md) |
-| Resource Cycle       | [terrarium-resource-cycle](sandbox/terrarium-resource-cycle.md) |
-| Main Game Loop       | [terrarium-main-game-loop](sandbox/terrarium-main-game-loop.md) |
+| System | Canvas Link |
+| --- | --- |
+| Grid System | [terrarium-grid-system](sandbox/terrarium-grid-system.md) |
+| Plants Lifecycle | [terrarium-plants-lifecycle](sandbox/terrarium-plants-lifecycle.md) |
+| Herbivore Lifecycle | [terrarium-herbivore-insects-lifecycle](sandbox/terrarium-herbivore-insects-lifecycle.md) |
+| Carnivore Lifecycle | [terrarium-carnivore-insects-lifecycle](sandbox/terrarium-carnivore-insects-lifecycle.md) |
+| Resource Cycle | [terrarium-resource-cycle](sandbox/terrarium-resource-cycle.md) |
+| Main Game Loop | [terrarium-main-game-loop](sandbox/terrarium-main-game-loop.md) |
 
 ---
 

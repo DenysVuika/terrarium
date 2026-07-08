@@ -44,3 +44,5 @@ flowchart TD
     AO[Carnivores on Sand] --> AP[2 Steps = 1 Cell]
     AO --> AQ[1 Energy/Step]
 ```
+
+Note: If this diagram conflicts with prose mechanics, use README Section 7 (Canonical Conflict-Resolution Rules) as the source of truth.
