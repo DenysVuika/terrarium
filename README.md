@@ -12,6 +12,7 @@
 - **Plants**: Grow, reproduce, and die based on resources.
 - **Herbivores**: Move, eat plants, reproduce, and flee from carnivores.
 - **Carnivores**: Move, eat herbivores/carnivores, reproduce, and **fight** (turn-based combat with AP).
+- **Behavior Profiles**: Runtime-selectable strategy profiles for herbivores and carnivores.
 - **Resource Cycles**: Global O₂/CO₂ pools, per-cell water/nutrients.
 - **Player Actions**: Toggle lid (light/evaporation), add water/soil.
 
@@ -300,6 +301,12 @@ node src/simulate.ts --ticks 100 --seed my-seed --plants 1800 --herbivores 180 -
 node src/simulate.ts --ticks 300 --seed long-run --day-ticks 4 --night-ticks 4
 ```
 
+- Custom run with explicit behavior profiles:
+
+```bash
+node src/simulate.ts --ticks 150 --seed profile-test --herbivore-behavior forager --carnivore-behavior aggressive
+```
+
 - Record per-tick CSV + replay JSON:
 
 ```bash
@@ -339,6 +346,8 @@ node src/simulate.ts --replay latest --native-size
 - `--herbivores <number>`: initial herbivore count
 - `--carnivores <number>`: initial carnivore count
 - `--lid <open|closed>`: lid state
+- `--herbivore-behavior <default|forager>`: herbivore policy profile
+- `--carnivore-behavior <default|aggressive|passive>`: carnivore policy profile
 - `--day-ticks <number>`: number of ticks per day phase (default `1`)
 - `--night-ticks <number>`: number of ticks per night phase (default `1`)
 - `--sweep`: run fixed 5-seed stability sweep
@@ -368,6 +377,7 @@ The simulator uses baseline defaults from `src/config.ts` and then applies CLI o
 
 - Common tuning groups:
   - **World/Time**: `size`, `ticks`, `seed`, `lidOpen`, `dayTicks`, `nightTicks`
+  - **Behavior Profiles**: `herbivoreBehavior`, `carnivoreBehavior`
   - **Plants**: `plantReproductionChance`, `plantNightShrink`, `plantStressShrink`
   - **Water/Weather**: `rainChance`, `rainAmount`, `droughtChance`, `droughtAmount`, `evaporationOpen`, seepage settings
   - **Herbivores**: lifecycle stage ticks, metabolism/dehydration, movement cost, reproduction gates/caps, starvation/age limits
@@ -382,6 +392,40 @@ The simulator uses baseline defaults from `src/config.ts` and then applies CLI o
 - Anti-overpopulation controls:
   - Herbivores: `herbivoreBreedChance`, `herbivoreBreedCooldown`, `herbivoreBreedLocalCap`, `herbivorePopulationCapPerPlant`
   - Carnivores: `carnivoreBreedChance`, `carnivoreBreedCooldown`, `carnivoreBreedLocalCap`, `carnivorePopulationCapPerHerbivore`
+
+### **Behavior Profile Reference**
+
+The simulator now supports strategy-style behavior profile selection at runtime.
+
+- Herbivores:
+  - `default`: baseline seek/eat/reproduce profile.
+  - `forager`: wider plant search and higher consume success (plant-pressure oriented).
+- Carnivores:
+  - `default`: baseline hunt/rest/rival-fight profile.
+  - `aggressive`: wider hunt radius, less resting, more rival-fight tendency.
+  - `passive`: narrower hunt radius, more resting, lower rival-fight tendency.
+
+These profiles are selected through:
+
+- Config defaults in `src/config.ts`:
+  - `herbivoreBehavior`
+  - `carnivoreBehavior`
+- CLI flags:
+  - `--herbivore-behavior`
+  - `--carnivore-behavior`
+
+### **Architecture Notes: Strategy + Repository + Events**
+
+The entity architecture now separates concerns into dedicated modules:
+
+- `src/entities/repository.ts`: central entity storage utilities (live counts, occupied-cell set, cleanup).
+- `src/events.ts`: typed simulation events and string formatting for replay/timeline output.
+- `src/entities/behavior.ts`: shared behavior strategy contracts and behavior id types.
+- `src/entities/herbivore-behaviors.ts`: herbivore strategy implementations and lookup.
+- `src/entities/carnivore-behaviors.ts`: carnivore strategy implementations and lookup.
+- `src/entities/behavior-factory.ts`: central strategy resolver API consumed by entity classes.
+
+This keeps lifecycle/state in entities and policy logic in strategy modules, enabling easier experimentation without rewriting core lifecycle plumbing.
 
 ### **Replay Controls**
 
@@ -425,6 +469,12 @@ Replay symbol legend:
   - `src/world.ts`: grid generation, terrain patches, per-cell resources
   - `src/simulator.ts`: game loop, resources, entities, combat, win/lose checks
   - `src/simulate.ts`: CLI entry point, CSV/JSON recording, interactive replay
+  - `src/entities/repository.ts`: entity collection management helpers
+  - `src/events.ts`: typed replay/event timeline primitives
+  - `src/entities/behavior.ts`: strategy interfaces and behavior ids
+  - `src/entities/behavior-factory.ts`: runtime behavior selection facade
+  - `src/entities/herbivore-behaviors.ts`: herbivore strategy implementations
+  - `src/entities/carnivore-behaviors.ts`: carnivore strategy implementations
 
 ### **Recording Format Guidance**
 
