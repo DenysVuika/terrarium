@@ -1,10 +1,80 @@
 import type { SimulationConfig } from '../config.ts';
 import type { SimContext } from '../context.ts';
+import type { InsectBehaviorStrategy } from './behavior.ts';
 import { Insect } from './insect.ts';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
+
+class DefaultHerbivoreBehavior implements InsectBehaviorStrategy<Herbivore> {
+  tick(entity: Herbivore, ctx: SimContext): void {
+    const { world, config, rng } = ctx;
+
+    const targetPlant = entity.findNearestPlant(2, ctx);
+    if (targetPlant >= 0) {
+      entity.moveToward(targetPlant, ctx);
+    } else {
+      entity.moveRandom(ctx);
+    }
+
+    const consumablePlants = [entity.cell]
+      .concat(world.neighbors8(entity.cell))
+      .filter((cell, index, cells) => cells.indexOf(cell) === index)
+      .filter((cell) => ctx.plants.has(cell));
+
+    if (consumablePlants.length > 0 && rng.chance(0.8)) {
+      const plantCell = rng.pick(consumablePlants);
+      if (plantCell !== null) {
+        ctx.plants.delete(plantCell);
+        world.nutrients[plantCell] = clamp(
+          world.nutrients[plantCell] + 50,
+          0,
+          300,
+        );
+        entity.energy += 5;
+      }
+    }
+
+    const localHerbivores = world
+      .neighbors8(entity.cell)
+      .filter((cell) =>
+        ctx.herbivores.some(
+          (h) => h.alive && h.cell === cell && h.id !== entity.id,
+        ),
+      ).length;
+    const liveHerbivores = ctx.herbivores.filter((h) => h.alive).length;
+    const herbivoreGlobalCap = Math.max(
+      1,
+      Math.floor(ctx.plants.size * config.herbivorePopulationCapPerPlant),
+    );
+
+    if (
+      entity.energy >= config.herbivoreBreedEnergyMin &&
+      entity.cooldown <= 0 &&
+      localHerbivores < config.herbivoreBreedLocalCap &&
+      liveHerbivores < herbivoreGlobalCap &&
+      rng.chance(config.herbivoreBreedChance)
+    ) {
+      const spawnCell = entity.findSpawnCell(ctx);
+      if (spawnCell >= 0) {
+        entity.energy -= config.herbivoreBreedEnergyCost;
+        entity.cooldown = config.herbivoreBreedCooldown;
+        const child = new Herbivore(
+          ctx.nextId('h'),
+          spawnCell,
+          5,
+          entity.config,
+        );
+        ctx.herbivores.push(child);
+        ctx.occupied.add(spawnCell);
+        ctx.stats.herbivoreBirths += 1;
+      }
+    }
+  }
+}
+
+const HERBIVORE_BEHAVIOR = new DefaultHerbivoreBehavior();
 
 export class Herbivore extends Insect {
   private readonly _config: SimulationConfig;
@@ -17,6 +87,10 @@ export class Herbivore extends Insect {
   ) {
     super('herbivore', id, cell, energy);
     this._config = config;
+  }
+
+  get config(): SimulationConfig {
+    return this._config;
   }
 
   // ── Species parameters ──────────────────────────────────────────────────────
@@ -56,73 +130,7 @@ export class Herbivore extends Insect {
     );
   }
 
-  // ── Adult behaviour ─────────────────────────────────────────────────────────
-
   protected tickBehavior(ctx: SimContext): void {
-    const { world, config, rng } = ctx;
-
-    // Movement: seek the nearest plant within radius 2, or roam
-    const targetPlant = this.findNearestPlant(2, ctx);
-    if (targetPlant >= 0) {
-      this.moveToward(targetPlant, ctx);
-    } else {
-      this.moveRandom(ctx);
-    }
-
-    // Eating: consume an adjacent (or same-cell) plant with 80% success
-    const consumablePlants = [this.cell]
-      .concat(world.neighbors8(this.cell))
-      .filter((cell, index, cells) => cells.indexOf(cell) === index)
-      .filter((cell) => ctx.plants.has(cell));
-
-    if (consumablePlants.length > 0 && rng.chance(0.8)) {
-      const plantCell = rng.pick(consumablePlants);
-      if (plantCell !== null) {
-        ctx.plants.delete(plantCell);
-        world.nutrients[plantCell] = clamp(
-          world.nutrients[plantCell] + 50,
-          0,
-          300,
-        );
-        this.energy += 5;
-      }
-    }
-
-    // Reproduction
-    const localHerbivores = world
-      .neighbors8(this.cell)
-      .filter((cell) =>
-        ctx.herbivores.some(
-          (h) => h.alive && h.cell === cell && h.id !== this.id,
-        ),
-      ).length;
-    const liveHerbivores = ctx.herbivores.filter((h) => h.alive).length;
-    const herbivoreGlobalCap = Math.max(
-      1,
-      Math.floor(ctx.plants.size * config.herbivorePopulationCapPerPlant),
-    );
-
-    if (
-      this.energy >= config.herbivoreBreedEnergyMin &&
-      this.cooldown <= 0 &&
-      localHerbivores < config.herbivoreBreedLocalCap &&
-      liveHerbivores < herbivoreGlobalCap &&
-      rng.chance(config.herbivoreBreedChance)
-    ) {
-      const spawnCell = this.findSpawnCell(ctx);
-      if (spawnCell >= 0) {
-        this.energy -= config.herbivoreBreedEnergyCost;
-        this.cooldown = config.herbivoreBreedCooldown;
-        const child = new Herbivore(
-          ctx.nextId('h'),
-          spawnCell,
-          5,
-          this._config,
-        );
-        ctx.herbivores.push(child);
-        ctx.occupied.add(spawnCell);
-        ctx.stats.herbivoreBirths += 1;
-      }
-    }
+    HERBIVORE_BEHAVIOR.tick(this, ctx);
   }
 }

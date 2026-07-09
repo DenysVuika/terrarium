@@ -164,7 +164,7 @@ export abstract class Insect extends Entity {
 
   // ── Movement ────────────────────────────────────────────────────────────────
 
-  protected moveToward(targetCell: number, ctx: SimContext): boolean {
+  moveToward(targetCell: number, ctx: SimContext): boolean {
     const { world, rng } = ctx;
     const target = world.coords(targetCell);
 
@@ -193,7 +193,7 @@ export abstract class Insect extends Entity {
     return this.tryMove(options[0], ctx);
   }
 
-  protected moveRandom(ctx: SimContext): boolean {
+  moveRandom(ctx: SimContext): boolean {
     const { world, rng } = ctx;
 
     const options = world
@@ -276,7 +276,7 @@ export abstract class Insect extends Entity {
 
   // ── Utility ─────────────────────────────────────────────────────────────────
 
-  protected findNearestPlant(radius: number, ctx: SimContext): number {
+  findNearestPlant(radius: number, ctx: SimContext): number {
     const origin = ctx.world.coords(this.cell);
     let nearest = -1;
     let bestDist = Number.POSITIVE_INFINITY;
@@ -293,7 +293,7 @@ export abstract class Insect extends Entity {
     return nearest;
   }
 
-  protected findSpawnCell(ctx: SimContext): number {
+  findSpawnCell(ctx: SimContext): number {
     const options = ctx.world
       .neighbors8(this.cell)
       .filter((cell) => ctx.world.isWalkable(cell) && !ctx.occupied.has(cell));
