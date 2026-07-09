@@ -2,7 +2,8 @@ import type { SimContext } from '../context.ts';
 import { TERRAIN } from '../world.ts';
 import { Entity } from './entity.ts';
 
-export type InsectKind = 'herbivore' | 'carnivore';
+/** Kind is an open string so new species can be registered without editing this union. */
+export type InsectKind = string;
 export type InsectStage = 'egg' | 'larva' | 'adult';
 
 function clamp(value: number, min: number, max: number): number {

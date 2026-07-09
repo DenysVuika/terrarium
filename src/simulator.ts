@@ -3,14 +3,12 @@ import type { SimContext, TickStats } from './context.ts';
 import { createRng, type Rng } from './rng.ts';
 import { TERRAIN, World } from './world.ts';
 import { Plant } from './entities/plant.ts';
-import { Herbivore } from './entities/herbivore.ts';
-import { Carnivore } from './entities/carnivore.ts';
+// Species imports trigger self-registration in insectRegistry
+import './entities/herbivore.ts';
+import './entities/carnivore.ts';
 import { EntityRepository } from './entities/repository.ts';
+import { insectRegistry } from './entities/insect-registry.ts';
 import { formatSimulationEvent, type SimulationEvent } from './events.ts';
-import {
-  HERBIVORE_BEHAVIOR_IDS,
-  CARNIVORE_BEHAVIOR_IDS,
-} from './entities/behavior.ts';
 
 export interface Snapshot {
   tick: number;
@@ -133,43 +131,30 @@ class Simulator {
       }
     }
 
-    for (let index = 0; index < this.config.initialHerbivores; index += 1) {
-      const cell = this.world.randomCell(
-        candidate =>
-          this.world.isWalkable(candidate) &&
-          !this.entities.herbivores.some((h) => h.cell === candidate) &&
-          !this.entities.carnivores.some((c) => c.cell === candidate),
-      );
-      if (cell >= 0) {
-        this.entities.herbivores.push(
-          new Herbivore(
-            this.nextId('h'),
-            cell,
-            this.rng.int(6, 12),
-            this.config,
-            this.rng.pick(HERBIVORE_BEHAVIOR_IDS) ?? 'default',
-          ),
-        );
-      }
-    }
+    // Seed all registered species in registration order
+    for (const species of insectRegistry.all()) {
+      const count = species.initialCount(this.config);
+      const [minEnergy, maxEnergy] = species.seedEnergyRange;
 
-    for (let index = 0; index < this.config.initialCarnivores; index += 1) {
-      const cell = this.world.randomCell(
-        candidate =>
-          this.world.isWalkable(candidate) &&
-            !this.entities.herbivores.some((h) => h.cell === candidate) &&
-            !this.entities.carnivores.some((c) => c.cell === candidate),
-      );
-      if (cell >= 0) {
-        const carnivore = new Carnivore(
-          this.nextId('c'),
-          cell,
-          this.rng.int(10, 18),
-          this.config,
-          this.rng.pick(CARNIVORE_BEHAVIOR_IDS) ?? 'default',
+      for (let index = 0; index < count; index += 1) {
+        const cell = this.world.randomCell(
+          candidate =>
+            this.world.isWalkable(candidate) &&
+            !this.entities.isOccupied(candidate),
         );
-        carnivore.ap = this.rng.int(1, 6);
-        this.entities.carnivores.push(carnivore);
+        if (cell >= 0) {
+          const energy = this.rng.int(minEnergy, maxEnergy);
+          const behaviorId = this.rng.pick(species.behaviorIds as string[]) ?? species.behaviorIds[0];
+          const insect = species.create(
+            this.nextId(species.kind[0]),
+            cell,
+            energy,
+            this.config,
+            behaviorId,
+          );
+          species.afterSeed?.(insect, this.rng);
+          this.entities.addInsect(insect);
+        }
       }
     }
   }
@@ -341,9 +326,13 @@ class Simulator {
       o2: this.o2,
       co2: this.co2,
       plants: this.entities.plants,
+      insects: this.entities.allInsects(),
       herbivores: this.entities.herbivores,
       carnivores: this.entities.carnivores,
       occupied: new Set<number>(),
+      getInsectsByKind(kind: string) {
+        return self.entities.getByKind(kind);
+      },
       addEvent(msg: string) {
         self.addEvent(msg);
       },
@@ -388,14 +377,14 @@ class Simulator {
   }
 
   processInsects(ctx: SimContext): void {
-    // Herbivores tick first, then carnivores — index-based loops allow newly
-    // spawned eggs to be appended and processed (they skip tickBehavior as eggs).
-    for (let i = 0; i < this.entities.herbivores.length; i += 1) {
-      if (this.entities.herbivores[i].alive) this.entities.herbivores[i].tick(ctx);
-    }
-
-    for (let i = 0; i < this.entities.carnivores.length; i += 1) {
-      if (this.entities.carnivores[i].alive) this.entities.carnivores[i].tick(ctx);
+    // Iterate all registered species in registration order.
+    // Index-based loops allow newly spawned eggs to be picked up in the same
+    // tick (they skip tickBehavior because stage !== 'adult').
+    for (const species of insectRegistry.all()) {
+      const insects = this.entities.getByKind(species.kind);
+      for (let i = 0; i < insects.length; i += 1) {
+        if (insects[i].alive) insects[i].tick(ctx);
+      }
     }
 
     // Accumulate totals and emit summary events

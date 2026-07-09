@@ -1,7 +1,11 @@
 import type { SimulationConfig } from '../config.ts';
 import type { SimContext } from '../context.ts';
-import { HERBIVORE_BEHAVIOR_IDS, type HerbivoreBehaviorId } from './behavior.ts';
+import {
+  HERBIVORE_BEHAVIOR_IDS,
+  type HerbivoreBehaviorId,
+} from './behavior.ts';
 import { resolveHerbivoreBehavior } from './behavior-factory.ts';
+import { insectRegistry } from './insect-registry.ts';
 import { Insect } from './insect.ts';
 
 export class Herbivore extends Insect {
@@ -71,3 +75,14 @@ export class Herbivore extends Insect {
     resolveHerbivoreBehavior(this.behaviorId).tick(this, ctx);
   }
 }
+
+// Self-register so the simulator discovers this species without any imports in
+// simulator.ts. New species follow the same pattern in their own files.
+insectRegistry.register({
+  kind: 'herbivore',
+  behaviorIds: HERBIVORE_BEHAVIOR_IDS,
+  seedEnergyRange: [6, 12],
+  initialCount: (config) => config.initialHerbivores,
+  create: (id, cell, energy, config, behaviorId) =>
+    new Herbivore(id, cell, energy, config, behaviorId as HerbivoreBehaviorId),
+});

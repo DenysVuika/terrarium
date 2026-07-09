@@ -407,13 +407,77 @@ Each insect is independently assigned a random behavior profile when it is born 
 
 Behavior profiles are not configurable per-run from the CLI — the population mix is determined by the RNG seed, giving each seed a unique character.
 
+### **Adding a New Insect Species**
+
+The simulator is designed so a new insect type can be contributed without touching the simulator, context, or repository. The contribution checklist is:
+
+| Step | File to create | What goes there |
+| ---: | --- | --- |
+| 1 | `src/entities/my-insect.ts` | Class extending `Insect`, lifecycle parameters, hooks |
+| 2 | `src/entities/my-insect-behaviors.ts` | One or more `InsectBehaviorStrategy<MyInsect>` implementations + `getMyInsectBehavior(id)` factory |
+| 3 | `src/entities/behavior-factory.ts` | Wire `resolveMyInsectBehavior` (one function, two lines) |
+| 4 | `src/entities/my-insect.ts` (bottom) | `insectRegistry.register({ kind, behaviorIds, seedEnergyRange, initialCount, create })` |
+| 5 | `src/config.ts` (optional) | Add `initialMyInsects: 0` if a tunable starting population is needed |
+
+Once registered, the simulator automatically seeds, ticks, and counts the new species — no other changes needed.
+
+**Minimal example skeleton** (`src/entities/decomposer.ts`):
+
+```typescript
+import { Insect } from './insect.ts';
+import { insectRegistry } from './insect-registry.ts';
+import { resolveDecomposerBehavior, DECOMPOSER_BEHAVIOR_IDS } from './decomposer-behaviors.ts';
+
+export class Decomposer extends Insect {
+  readonly behaviorId: string;
+  private readonly _config: SimulationConfig;
+
+  constructor(id, cell, energy, config, behaviorId) {
+    super('decomposer', id, cell, energy);
+    this._config = config;
+    this.behaviorId = behaviorId;
+  }
+
+  spawnOffspring(ctx, cell) {
+    return new Decomposer(ctx.nextId('d'), cell, 4, this._config,
+      ctx.rng.pick(DECOMPOSER_BEHAVIOR_IDS) ?? 'default');
+  }
+
+  // ... lifecycle getters and hooks ...
+
+  protected tickBehavior(ctx) {
+    resolveDecomposerBehavior(this.behaviorId).tick(this, ctx);
+  }
+}
+
+insectRegistry.register({
+  kind: 'decomposer',
+  behaviorIds: DECOMPOSER_BEHAVIOR_IDS,
+  seedEnergyRange: [4, 8],
+  initialCount: (config) => config.initialDecomposers ?? 0,
+  create: (id, cell, energy, config, behaviorId) =>
+    new Decomposer(id, cell, energy, config, behaviorId),
+});
+```
+
+### **Adding a New Plant Type**
+
+Plants extend `Entity` directly and are simpler to add:
+
+1. Create `src/entities/my-plant.ts` extending `Plant` (or `Entity` for a fully custom tick loop).
+2. Override `tick(ctx): Plant | null` — return a child instance on reproduction, `null` otherwise.
+3. In the simulator's `seedInitialPopulation`, instantiate your plant class alongside the built-in `Plant`.
+
+No registration mechanism is needed for plants because the simulator already processes every entry in `entities.plants` uniformly regardless of class type.
+
 ### **Architecture Notes: Strategy + Repository + Events**
 
-The entity architecture now separates concerns into dedicated modules:
+The entity architecture separates concerns into dedicated modules:
 
-- `src/entities/repository.ts`: central entity storage utilities (live counts, occupied-cell set, cleanup).
+- `src/entities/insect-registry.ts`: singleton registry — the single integration point for new species.
+- `src/entities/repository.ts`: keyed insect storage (`Map<kind, Insect[]>`), typed getters for built-in species, population counts and cleanup.
 - `src/events.ts`: typed simulation events and string formatting for replay/timeline output.
-- `src/entities/behavior.ts`: shared behavior strategy contracts and behavior id types.
+- `src/entities/behavior.ts`: strategy interface, behavior id types, and exported id arrays for random selection.
 - `src/entities/herbivore-behaviors.ts`: herbivore strategy implementations and lookup.
 - `src/entities/carnivore-behaviors.ts`: carnivore strategy implementations and lookup.
 - `src/entities/behavior-factory.ts`: central strategy resolver API consumed by entity classes.

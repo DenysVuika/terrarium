@@ -3,6 +3,7 @@ import type { SimContext } from '../context.ts';
 import { TERRAIN } from '../world.ts';
 import { CARNIVORE_BEHAVIOR_IDS, type CarnivoreBehaviorId } from './behavior.ts';
 import { resolveCarnivoreBehavior } from './behavior-factory.ts';
+import { insectRegistry } from './insect-registry.ts';
 import { Insect } from './insect.ts';
 
 function clamp(value: number, min: number, max: number): number {
@@ -82,3 +83,17 @@ export class Carnivore extends Insect {
     resolveCarnivoreBehavior(this.behaviorId).tick(this, ctx);
   }
 }
+
+// Self-register so the simulator discovers this species without any imports in
+// simulator.ts. New species follow the same pattern in their own files.
+insectRegistry.register({
+  kind: 'carnivore',
+  behaviorIds: CARNIVORE_BEHAVIOR_IDS,
+  seedEnergyRange: [10, 18],
+  initialCount: (config) => config.initialCarnivores,
+  create: (id, cell, energy, config, behaviorId) =>
+    new Carnivore(id, cell, energy, config, behaviorId as CarnivoreBehaviorId),
+  afterSeed: (insect, rng) => {
+    (insect as Carnivore).ap = rng.int(1, 6);
+  },
+});
