@@ -15,7 +15,7 @@ function parseArgs(argv) {
     recordJsonPath: null,
     recordCsvPath: null,
     autoplay: false,
-    emojiMode: false,
+    emojiMode: true,
     autoFit: true,
     replayFps: 4,
     previewWidth: 64,

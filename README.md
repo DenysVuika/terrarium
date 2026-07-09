@@ -353,7 +353,7 @@ node src/simulate.js --replay runs/my-seed.json --autoplay --fps 6
 - `--replay latest`: auto-load newest replay JSON under `runs/`
 - `--autoplay`: start replay in autoplay mode
 - `--fps <number>`: autoplay speed in frames/tick-steps per second
-- `--emoji`: start replay in emoji render mode
+- `--emoji`: force emoji render mode (default)
 - `--ascii`: force ASCII render mode
 - `--auto-fit`: auto-fit replay viewport for emoji mode (default: on)
 - `--no-auto-fit`: disable auto-fit and keep configured preview dimensions
