@@ -266,6 +266,7 @@ Use this section as a fast guide to what is implemented now vs. what is design i
 - Use replay timeline and recent event history to map sudden population drops to weather/combat/resource events.
 
 ---
+
 ## **🧪 Prototype Simulator (Node.js)**
 
 The repository now includes an executable prototype simulator in `src/`.
