@@ -367,6 +367,8 @@ node src/simulate.ts --replay latest --native-size
 - `--preview-width <number>`: replay render width (default `64`)
 - `--preview-height <number>`: replay render height (default `24`)
 
+Behavior flags are strict: invalid profile values cause the CLI to exit with an error that lists allowed values.
+
 ### **Configuration**
 
 The simulator uses baseline defaults from `src/config.ts` and then applies CLI overrides.

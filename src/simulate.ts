@@ -5,6 +5,10 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 
 import { DEFAULT_CONFIG, type SimulationConfig } from './config.ts';
+import type {
+  CarnivoreBehaviorId,
+  HerbivoreBehaviorId,
+} from './entities/behavior.ts';
 import {
   runSimulation,
   type Outcome,
@@ -36,6 +40,46 @@ type ReplayRecording = {
   outcome: Outcome;
   config: SimulationConfig;
 };
+
+const HERBIVORE_BEHAVIOR_VALUES: HerbivoreBehaviorId[] = [
+  'default',
+  'forager',
+];
+
+const CARNIVORE_BEHAVIOR_VALUES: CarnivoreBehaviorId[] = [
+  'default',
+  'aggressive',
+  'passive',
+];
+
+function requireFlagValue(token: string, value: string | undefined): string {
+  if (!value || value.startsWith('--')) {
+    throw new Error(`Missing value for ${token}.`);
+  }
+  return value;
+}
+
+function parseHerbivoreBehavior(value: string): HerbivoreBehaviorId {
+  if (
+    HERBIVORE_BEHAVIOR_VALUES.includes(value as HerbivoreBehaviorId)
+  ) {
+    return value as HerbivoreBehaviorId;
+  }
+  throw new Error(
+    `Invalid value for --herbivore-behavior: ${value}. Allowed: ${HERBIVORE_BEHAVIOR_VALUES.join(', ')}`,
+  );
+}
+
+function parseCarnivoreBehavior(value: string): CarnivoreBehaviorId {
+  if (
+    CARNIVORE_BEHAVIOR_VALUES.includes(value as CarnivoreBehaviorId)
+  ) {
+    return value as CarnivoreBehaviorId;
+  }
+  throw new Error(
+    `Invalid value for --carnivore-behavior: ${value}. Allowed: ${CARNIVORE_BEHAVIOR_VALUES.join(', ')}`,
+  );
+}
 
 function parseArgs(argv: string[]): SimulationCliConfig {
   const args: SimulationCliConfig = {
@@ -71,9 +115,13 @@ function parseArgs(argv: string[]): SimulationCliConfig {
     } else if (token === '--carnivores') {
       args.initialCarnivores = Number(argv[++index]);
     } else if (token === '--herbivore-behavior') {
-      args.herbivoreBehavior = String(argv[++index]) as SimulationCliConfig['herbivoreBehavior'];
+      const value = requireFlagValue(token, argv[index + 1]);
+      index += 1;
+      args.herbivoreBehavior = parseHerbivoreBehavior(value);
     } else if (token === '--carnivore-behavior') {
-      args.carnivoreBehavior = String(argv[++index]) as SimulationCliConfig['carnivoreBehavior'];
+      const value = requireFlagValue(token, argv[index + 1]);
+      index += 1;
+      args.carnivoreBehavior = parseCarnivoreBehavior(value);
     } else if (token === '--lid') {
       const mode = String(argv[++index]).toLowerCase();
       args.lidOpen = mode === 'open';
@@ -743,4 +791,10 @@ function main(): void {
   }
 }
 
-main();
+try {
+  main();
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`Error: ${message}`);
+  process.exitCode = 1;
+}
