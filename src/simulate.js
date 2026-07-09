@@ -3,6 +3,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const zlib = require('node:zlib');
 
 const { runSimulation } = require('./simulator');
 const { DEFAULT_CONFIG } = require('./config');
@@ -13,6 +14,7 @@ function parseArgs(argv) {
     sweep: false,
     replayPath: null,
     recordJsonPath: null,
+    recordJsonCompressed: true,
     recordCsvPath: null,
     autoplay: false,
     emojiMode: true,
@@ -49,6 +51,10 @@ function parseArgs(argv) {
       args.sweep = true;
     } else if (token === '--record-json') {
       args.recordJsonPath = String(argv[++i]);
+    } else if (token === '--record-json-gzip') {
+      args.recordJsonCompressed = true;
+    } else if (token === '--record-json-plain') {
+      args.recordJsonCompressed = false;
     } else if (token === '--record-csv') {
       args.recordCsvPath = String(argv[++i]);
     } else if (token === '--replay') {
@@ -143,19 +149,38 @@ function writeCsv(result, filePath) {
   fs.writeFileSync(filePath, `${rows.join('\n')}\n`, 'utf8');
 }
 
-function writeJsonRecording(result, filePath) {
-  ensureParentDir(filePath);
+function resolveJsonOutputPath(filePath, compressed) {
+  if (!compressed) {
+    return filePath;
+  }
+  return filePath.endsWith('.gz') ? filePath : `${filePath}.gz`;
+}
+
+function writeJsonRecording(result, filePath, compressed = true) {
+  const resolvedPath = resolveJsonOutputPath(filePath, compressed);
+  ensureParentDir(resolvedPath);
   const payload = {
     recordingType: 'terrarium-tick-replay',
     replay: result.replay,
     outcome: result.outcome,
     config: result.config,
   };
-  fs.writeFileSync(filePath, JSON.stringify(payload), 'utf8');
+  const json = JSON.stringify(payload);
+
+  if (compressed) {
+    fs.writeFileSync(resolvedPath, zlib.gzipSync(json));
+  } else {
+    fs.writeFileSync(resolvedPath, json, 'utf8');
+  }
+
+  return resolvedPath;
 }
 
 function loadReplay(filePath) {
-  const raw = fs.readFileSync(filePath, 'utf8');
+  const buffer = fs.readFileSync(filePath);
+  const raw = filePath.endsWith('.gz')
+    ? zlib.gunzipSync(buffer).toString('utf8')
+    : buffer.toString('utf8');
   const parsed = JSON.parse(raw);
   if (!parsed || !parsed.replay || !Array.isArray(parsed.replay.frames)) {
     throw new Error('Invalid replay file: expected replay.frames array');
@@ -170,7 +195,7 @@ function findLatestReplayFile(dirPath) {
 
   const files = fs
     .readdirSync(dirPath)
-    .filter((name) => name.endsWith('.json'))
+    .filter((name) => name.endsWith('.json') || name.endsWith('.json.gz'))
     .map((name) => {
       const fullPath = path.join(dirPath, name);
       return {
@@ -185,6 +210,14 @@ function findLatestReplayFile(dirPath) {
 
 function resolveReplayPath(replayPath) {
   if (replayPath && replayPath !== 'latest') {
+    if (fs.existsSync(replayPath)) {
+      return replayPath;
+    }
+
+    if (!replayPath.endsWith('.gz') && fs.existsSync(`${replayPath}.gz`)) {
+      return `${replayPath}.gz`;
+    }
+
     return replayPath;
   }
 
@@ -591,8 +624,12 @@ function main() {
   }
 
   if (config.recordJsonPath) {
-    writeJsonRecording(result, config.recordJsonPath);
-    console.log(`Replay JSON written: ${config.recordJsonPath}`);
+    const writtenPath = writeJsonRecording(
+      result,
+      config.recordJsonPath,
+      config.recordJsonCompressed,
+    );
+    console.log(`Replay JSON written: ${writtenPath}`);
   }
 }
 

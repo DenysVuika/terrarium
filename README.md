@@ -285,7 +285,7 @@ The repository now includes an executable prototype simulator in `src/`.
 ### **Run Commands**
 
 - Install/runtime: Node.js 18+ (no external dependencies).
-- Single run (100 ticks) and automatically save replay artifacts to `runs/latest.csv` and `runs/latest.json`:
+- Single run (100 ticks) and automatically save replay artifacts to `runs/latest.csv` and compressed replay `runs/latest.json.gz`:
 
 ```bash
 npm run simulate
@@ -314,7 +314,7 @@ node src/simulate.js --ticks 300 --seed long-run --day-ticks 4 --night-ticks 4
 - Record per-tick CSV + replay JSON:
 
 ```bash
-node src/simulate.js --ticks 100 --seed my-seed --record-csv runs/my-seed.csv --record-json runs/my-seed.json
+node src/simulate.js --ticks 100 --seed my-seed --record-csv runs/my-seed.csv --record-json runs/my-seed.json.gz
 ```
 
 - Replay latest run with keyboard navigation:
@@ -326,13 +326,13 @@ npm run simulate:replay
 - Replay a specific file:
 
 ```bash
-node src/simulate.js --replay runs/my-seed.json
+node src/simulate.js --replay runs/my-seed.json.gz
 ```
 
 - Replay with autoplay enabled on startup:
 
 ```bash
-node src/simulate.js --replay runs/my-seed.json --autoplay --fps 6
+node src/simulate.js --replay runs/my-seed.json.gz --autoplay --fps 6
 ```
 
 ### **CLI Options**
@@ -348,9 +348,11 @@ node src/simulate.js --replay runs/my-seed.json --autoplay --fps 6
 - `--night-ticks <number>`: number of ticks per night phase (default `1`)
 - `--sweep`: run fixed 5-seed stability sweep
 - `--record-csv <path>`: write per-tick aggregate metrics CSV
-- `--record-json <path>`: write full replay JSON (terrain + entity positions per tick)
-- `--replay <path>`: launch interactive replay from recorded JSON
-- `--replay latest`: auto-load newest replay JSON under `runs/`
+- `--record-json <path>`: write replay JSON at path (compressed by default)
+- `--record-json-gzip`: force gzip-compressed replay output (default)
+- `--record-json-plain`: force plain `.json` replay output
+- `--replay <path>`: launch interactive replay from recorded JSON (`.json` or `.json.gz`)
+- `--replay latest`: auto-load newest replay JSON (`.json`/`.json.gz`) under `runs/`
 - `--autoplay`: start replay in autoplay mode
 - `--fps <number>`: autoplay speed in frames/tick-steps per second
 - `--emoji`: force emoji render mode (default)
@@ -432,7 +434,8 @@ Replay symbol legend:
   - Contains aggregated per-tick values (O2, CO2, populations, water metrics).
 - **JSON replay** is richer and designed for deterministic console playback.
   - Contains world terrain and per-tick entity positions.
-  - File size is larger than CSV but enables interactive tick navigation.
+  - Default output is gzip-compressed (`.json.gz`) to reduce file size.
+  - Use `--record-json-plain` if you explicitly need uncompressed JSON.
 
 ---
 
