@@ -360,6 +360,31 @@ node src/simulate.js --replay runs/my-seed.json --autoplay --fps 6
 - `--preview-width <number>`: replay render width (default `64`)
 - `--preview-height <number>`: replay render height (default `24`)
 
+### **Configuration**
+
+The simulator uses baseline defaults from `src/config.js` and then applies CLI overrides.
+
+- Override precedence:
+  1. `DEFAULT_CONFIG` in `src/config.js`
+  2. CLI flags passed to `node src/simulate.js ...`
+
+- Common tuning groups:
+  - **World/Time**: `size`, `ticks`, `seed`, `lidOpen`, `dayTicks`, `nightTicks`
+  - **Plants**: `plantReproductionChance`, `plantNightShrink`, `plantStressShrink`
+  - **Water/Weather**: `rainChance`, `rainAmount`, `droughtChance`, `droughtAmount`, `evaporationOpen`, seepage settings
+  - **Herbivores**: lifecycle stage ticks, metabolism/dehydration, movement cost, reproduction gates/caps, starvation/age limits
+  - **Carnivores**: hunt/combat values, rest behavior, movement/AP strain, reproduction gates/caps, starvation/age limits
+  - **Global Balance**: gas flux scaling and midpoint pull
+
+- Practical workflow:
+  1. Keep `src/config.js` as the canonical baseline.
+  2. Use CLI flags for scenario experiments (`--ticks`, `--day-ticks`, `--night-ticks`, initial populations).
+  3. Promote stable scenario values back into `src/config.js` once validated.
+
+- Anti-overpopulation controls:
+  - Herbivores: `herbivoreBreedChance`, `herbivoreBreedCooldown`, `herbivoreBreedLocalCap`, `herbivorePopulationCapPerPlant`
+  - Carnivores: `carnivoreBreedChance`, `carnivoreBreedCooldown`, `carnivoreBreedLocalCap`, `carnivorePopulationCapPerHerbivore`
+
 ### **Replay Controls**
 
 - `Left Arrow`: previous tick
