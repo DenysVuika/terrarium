@@ -1,9 +1,11 @@
 import type { SimulationConfig } from '../config.ts';
 import type { SimContext } from '../context.ts';
+import { HERBIVORE_BEHAVIOR_IDS, type HerbivoreBehaviorId } from './behavior.ts';
 import { resolveHerbivoreBehavior } from './behavior-factory.ts';
 import { Insect } from './insect.ts';
 
 export class Herbivore extends Insect {
+  readonly behaviorId: HerbivoreBehaviorId;
   private readonly _config: SimulationConfig;
 
   constructor(
@@ -11,17 +13,21 @@ export class Herbivore extends Insect {
     cell: number,
     energy: number,
     config: SimulationConfig,
+    behaviorId: HerbivoreBehaviorId,
   ) {
     super('herbivore', id, cell, energy);
     this._config = config;
+    this.behaviorId = behaviorId;
   }
 
   get config(): SimulationConfig {
     return this._config;
   }
 
+  /** Spawn an offspring with a randomly chosen behavior profile. */
   spawnOffspring(ctx: SimContext, cell: number): Herbivore {
-    return new Herbivore(ctx.nextId('h'), cell, 5, this._config);
+    const behaviorId = ctx.rng.pick(HERBIVORE_BEHAVIOR_IDS) ?? 'default';
+    return new Herbivore(ctx.nextId('h'), cell, 5, this._config, behaviorId);
   }
 
   // Species parameters
@@ -62,6 +68,6 @@ export class Herbivore extends Insect {
   }
 
   protected tickBehavior(ctx: SimContext): void {
-    resolveHerbivoreBehavior(this._config.herbivoreBehavior).tick(this, ctx);
+    resolveHerbivoreBehavior(this.behaviorId).tick(this, ctx);
   }
 }

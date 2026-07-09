@@ -3,6 +3,9 @@ import type {
   HerbivoreBehaviorId,
 } from './entities/behavior.ts';
 
+// Re-export for external consumers who need the id types.
+export type { HerbivoreBehaviorId, CarnivoreBehaviorId };
+
 export const DEFAULT_CONFIG = {
   // World width/height in cells.
   size: 250,
@@ -31,11 +34,6 @@ export const DEFAULT_CONFIG = {
   initialHerbivores: 180,
   // Initial number of carnivores spawned at simulation start.
   initialCarnivores: 8,
-
-  // Runtime-selectable herbivore behavior profile.
-  herbivoreBehavior: 'default' as HerbivoreBehaviorId,
-  // Runtime-selectable carnivore behavior profile.
-  carnivoreBehavior: 'default' as CarnivoreBehaviorId,
 
   // Per-tick chance that a mature plant attempts reproduction.
   plantReproductionChance: 0.12,

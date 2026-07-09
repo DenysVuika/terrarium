@@ -12,7 +12,7 @@
 - **Plants**: Grow, reproduce, and die based on resources.
 - **Herbivores**: Move, eat plants, reproduce, and flee from carnivores.
 - **Carnivores**: Move, eat herbivores/carnivores, reproduce, and **fight** (turn-based combat with AP).
-- **Behavior Profiles**: Runtime-selectable strategy profiles for herbivores and carnivores.
+- **Behavior Profiles**: Each insect is assigned a random behavior profile at birth, making populations naturally diverse.
 - **Resource Cycles**: Global O₂/CO₂ pools, per-cell water/nutrients.
 - **Player Actions**: Toggle lid (light/evaporation), add water/soil.
 
@@ -346,8 +346,6 @@ node src/simulate.ts --replay latest --native-size
 - `--herbivores <number>`: initial herbivore count
 - `--carnivores <number>`: initial carnivore count
 - `--lid <open|closed>`: lid state
-- `--herbivore-behavior <default|forager>`: herbivore policy profile
-- `--carnivore-behavior <default|aggressive|passive>`: carnivore policy profile
 - `--day-ticks <number>`: number of ticks per day phase (default `1`)
 - `--night-ticks <number>`: number of ticks per night phase (default `1`)
 - `--sweep`: run fixed 5-seed stability sweep
@@ -367,8 +365,6 @@ node src/simulate.ts --replay latest --native-size
 - `--preview-width <number>`: replay render width (default `64`)
 - `--preview-height <number>`: replay render height (default `24`)
 
-Behavior flags are strict: invalid profile values cause the CLI to exit with an error that lists allowed values.
-
 ### **Configuration**
 
 The simulator uses baseline defaults from `src/config.ts` and then applies CLI overrides.
@@ -379,7 +375,6 @@ The simulator uses baseline defaults from `src/config.ts` and then applies CLI o
 
 - Common tuning groups:
   - **World/Time**: `size`, `ticks`, `seed`, `lidOpen`, `dayTicks`, `nightTicks`
-  - **Behavior Profiles**: `herbivoreBehavior`, `carnivoreBehavior`
   - **Plants**: `plantReproductionChance`, `plantNightShrink`, `plantStressShrink`
   - **Water/Weather**: `rainChance`, `rainAmount`, `droughtChance`, `droughtAmount`, `evaporationOpen`, seepage settings
   - **Herbivores**: lifecycle stage ticks, metabolism/dehydration, movement cost, reproduction gates/caps, starvation/age limits
@@ -395,26 +390,22 @@ The simulator uses baseline defaults from `src/config.ts` and then applies CLI o
   - Herbivores: `herbivoreBreedChance`, `herbivoreBreedCooldown`, `herbivoreBreedLocalCap`, `herbivorePopulationCapPerPlant`
   - Carnivores: `carnivoreBreedChance`, `carnivoreBreedCooldown`, `carnivoreBreedLocalCap`, `carnivorePopulationCapPerHerbivore`
 
-### **Behavior Profile Reference**
+### **Behavior Profiles**
 
-The simulator now supports strategy-style behavior profile selection at runtime.
+Each insect is independently assigned a random behavior profile when it is born (initial seeding and all offspring). This means a single simulation run will contain a naturally diverse population — some carnivores will be aggressive, others passive; some herbivores will be wide-ranging foragers, others default seekers.
 
-- Herbivores:
-  - `default`: baseline seek/eat/reproduce profile.
-  - `forager`: wider plant search and higher consume success (plant-pressure oriented).
-- Carnivores:
-  - `default`: baseline hunt/rest/rival-fight profile.
-  - `aggressive`: wider hunt radius, less resting, more rival-fight tendency.
-  - `passive`: narrower hunt radius, more resting, lower rival-fight tendency.
+- Herbivore profiles: `default`, `forager`
+- Carnivore profiles: `default`, `aggressive`, `passive`
 
-These profiles are selected through:
+| Profile | Species | Effect |
+| --- | --- | --- |
+| `default` | Herbivore | Seeks plants within radius 2, eats with 80% success |
+| `forager` | Herbivore | Wider plant search (radius 3), eats with 90% success |
+| `default` | Carnivore | Baseline hunt / rest / rival-fight behaviour |
+| `aggressive` | Carnivore | Wider hunt radius, less resting, higher rival-fight chance |
+| `passive` | Carnivore | Narrower hunt radius, more resting, lower rival-fight chance |
 
-- Config defaults in `src/config.ts`:
-  - `herbivoreBehavior`
-  - `carnivoreBehavior`
-- CLI flags:
-  - `--herbivore-behavior`
-  - `--carnivore-behavior`
+Behavior profiles are not configurable per-run from the CLI — the population mix is determined by the RNG seed, giving each seed a unique character.
 
 ### **Architecture Notes: Strategy + Repository + Events**
 

@@ -7,6 +7,10 @@ import { Herbivore } from './entities/herbivore.ts';
 import { Carnivore } from './entities/carnivore.ts';
 import { EntityRepository } from './entities/repository.ts';
 import { formatSimulationEvent, type SimulationEvent } from './events.ts';
+import {
+  HERBIVORE_BEHAVIOR_IDS,
+  CARNIVORE_BEHAVIOR_IDS,
+} from './entities/behavior.ts';
 
 export interface Snapshot {
   tick: number;
@@ -138,7 +142,13 @@ class Simulator {
       );
       if (cell >= 0) {
         this.entities.herbivores.push(
-          new Herbivore(this.nextId('h'), cell, this.rng.int(6, 12), this.config),
+          new Herbivore(
+            this.nextId('h'),
+            cell,
+            this.rng.int(6, 12),
+            this.config,
+            this.rng.pick(HERBIVORE_BEHAVIOR_IDS) ?? 'default',
+          ),
         );
       }
     }
@@ -156,6 +166,7 @@ class Simulator {
           cell,
           this.rng.int(10, 18),
           this.config,
+          this.rng.pick(CARNIVORE_BEHAVIOR_IDS) ?? 'default',
         );
         carnivore.ap = this.rng.int(1, 6);
         this.entities.carnivores.push(carnivore);

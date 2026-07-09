@@ -1,6 +1,7 @@
 import type { SimulationConfig } from '../config.ts';
 import type { SimContext } from '../context.ts';
 import { TERRAIN } from '../world.ts';
+import { CARNIVORE_BEHAVIOR_IDS, type CarnivoreBehaviorId } from './behavior.ts';
 import { resolveCarnivoreBehavior } from './behavior-factory.ts';
 import { Insect } from './insect.ts';
 
@@ -10,6 +11,7 @@ function clamp(value: number, min: number, max: number): number {
 
 export class Carnivore extends Insect {
   ap: number;
+  readonly behaviorId: CarnivoreBehaviorId;
   private readonly _config: SimulationConfig;
 
   constructor(
@@ -17,9 +19,11 @@ export class Carnivore extends Insect {
     cell: number,
     energy: number,
     config: SimulationConfig,
+    behaviorId: CarnivoreBehaviorId,
   ) {
     super('carnivore', id, cell, energy);
     this._config = config;
+    this.behaviorId = behaviorId;
     this.ap = 0;
   }
 
@@ -27,8 +31,10 @@ export class Carnivore extends Insect {
     return this._config;
   }
 
+  /** Spawn an offspring with a randomly chosen behavior profile. */
   spawnOffspring(ctx: SimContext, cell: number): Carnivore {
-    return new Carnivore(ctx.nextId('c'), cell, 7, this._config);
+    const behaviorId = ctx.rng.pick(CARNIVORE_BEHAVIOR_IDS) ?? 'default';
+    return new Carnivore(ctx.nextId('c'), cell, 7, this._config, behaviorId);
   }
 
   // Species parameters
@@ -73,6 +79,6 @@ export class Carnivore extends Insect {
   }
 
   protected tickBehavior(ctx: SimContext): void {
-    resolveCarnivoreBehavior(this._config.carnivoreBehavior).tick(this, ctx);
+    resolveCarnivoreBehavior(this.behaviorId).tick(this, ctx);
   }
 }
