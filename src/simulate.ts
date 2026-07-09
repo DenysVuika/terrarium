@@ -70,6 +70,10 @@ function parseArgs(argv: string[]): SimulationCliConfig {
       args.initialHerbivores = Number(argv[++index]);
     } else if (token === '--carnivores') {
       args.initialCarnivores = Number(argv[++index]);
+    } else if (token === '--herbivore-behavior') {
+      args.herbivoreBehavior = String(argv[++index]) as SimulationCliConfig['herbivoreBehavior'];
+    } else if (token === '--carnivore-behavior') {
+      args.carnivoreBehavior = String(argv[++index]) as SimulationCliConfig['carnivoreBehavior'];
     } else if (token === '--lid') {
       const mode = String(argv[++index]).toLowerCase();
       args.lidOpen = mode === 'open';
