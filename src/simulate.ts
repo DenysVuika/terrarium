@@ -1,15 +1,44 @@
 #!/usr/bin/env node
-'use strict';
 
-const fs = require('node:fs');
-const path = require('node:path');
-const zlib = require('node:zlib');
+import fs from 'node:fs';
+import path from 'node:path';
+import zlib from 'node:zlib';
 
-const { runSimulation } = require('./simulator');
-const { DEFAULT_CONFIG } = require('./config');
+import { DEFAULT_CONFIG, type SimulationConfig } from './config.ts';
+import {
+  runSimulation,
+  type Outcome,
+  type ReplayPayload,
+  type SimulationResult,
+  type Snapshot,
+} from './simulator.ts';
 
-function parseArgs(argv) {
-  const args = {
+type SimulationCliConfig = SimulationConfig & {
+  sweep: boolean;
+  replayPath: string | null;
+  recordJsonPath: string | null;
+  recordJsonCompressed: boolean;
+  recordCsvPath: string | null;
+  autoplay: boolean;
+  emojiMode: boolean;
+  autoFit: boolean;
+  nativeSize: boolean;
+  replayFps: number;
+  previewWidth: number;
+  previewHeight: number;
+  previewWidthSet: boolean;
+  previewHeightSet: boolean;
+};
+
+type ReplayRecording = {
+  recordingType: 'terrarium-tick-replay';
+  replay: ReplayPayload;
+  outcome: Outcome;
+  config: SimulationConfig;
+};
+
+function parseArgs(argv: string[]): SimulationCliConfig {
+  const args: SimulationCliConfig = {
     ...DEFAULT_CONFIG,
     sweep: false,
     replayPath: null,
@@ -27,42 +56,42 @@ function parseArgs(argv) {
     previewHeightSet: false,
   };
 
-  for (let i = 0; i < argv.length; i += 1) {
-    const token = argv[i];
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
     if (token === '--ticks') {
-      args.ticks = Number(argv[++i]);
+      args.ticks = Number(argv[++index]);
     } else if (token === '--size') {
-      args.size = Number(argv[++i]);
+      args.size = Number(argv[++index]);
     } else if (token === '--seed') {
-      args.seed = String(argv[++i]);
+      args.seed = String(argv[++index]);
     } else if (token === '--plants') {
-      args.initialPlants = Number(argv[++i]);
+      args.initialPlants = Number(argv[++index]);
     } else if (token === '--herbivores') {
-      args.initialHerbivores = Number(argv[++i]);
+      args.initialHerbivores = Number(argv[++index]);
     } else if (token === '--carnivores') {
-      args.initialCarnivores = Number(argv[++i]);
+      args.initialCarnivores = Number(argv[++index]);
     } else if (token === '--lid') {
-      const mode = String(argv[++i]).toLowerCase();
+      const mode = String(argv[++index]).toLowerCase();
       args.lidOpen = mode === 'open';
     } else if (token === '--day-ticks') {
-      args.dayTicks = Number(argv[++i]);
+      args.dayTicks = Number(argv[++index]);
     } else if (token === '--night-ticks') {
-      args.nightTicks = Number(argv[++i]);
+      args.nightTicks = Number(argv[++index]);
     } else if (token === '--sweep') {
       args.sweep = true;
     } else if (token === '--record-json') {
-      args.recordJsonPath = String(argv[++i]);
+      args.recordJsonPath = String(argv[++index]);
     } else if (token === '--record-json-gzip') {
       args.recordJsonCompressed = true;
     } else if (token === '--record-json-plain') {
       args.recordJsonCompressed = false;
     } else if (token === '--record-csv') {
-      args.recordCsvPath = String(argv[++i]);
+      args.recordCsvPath = String(argv[++index]);
     } else if (token === '--replay') {
-      const next = argv[i + 1];
+      const next = argv[index + 1];
       if (next && !next.startsWith('--')) {
         args.replayPath = String(next);
-        i += 1;
+        index += 1;
       } else {
         args.replayPath = 'latest';
       }
@@ -79,12 +108,12 @@ function parseArgs(argv) {
     } else if (token === '--native-size') {
       args.nativeSize = true;
     } else if (token === '--fps') {
-      args.replayFps = Number(argv[++i]);
+      args.replayFps = Number(argv[++index]);
     } else if (token === '--preview-width') {
-      args.previewWidth = Number(argv[++i]);
+      args.previewWidth = Number(argv[++index]);
       args.previewWidthSet = true;
     } else if (token === '--preview-height') {
-      args.previewHeight = Number(argv[++i]);
+      args.previewHeight = Number(argv[++index]);
       args.previewHeightSet = true;
     }
   }
@@ -92,12 +121,12 @@ function parseArgs(argv) {
   return args;
 }
 
-function ensureParentDir(filePath) {
+function ensureParentDir(filePath: string): void {
   const dir = path.dirname(filePath);
   fs.mkdirSync(dir, { recursive: true });
 }
 
-function writeCsv(result, filePath) {
+function writeCsv(result: SimulationResult, filePath: string): void {
   ensureParentDir(filePath);
   const header = [
     'tick',
@@ -130,21 +159,21 @@ function writeCsv(result, filePath) {
     ].join(','),
   );
 
-  for (let i = 0; i < result.history.length; i += 1) {
-    const s = result.history[i];
+  for (let index = 0; index < result.history.length; index += 1) {
+    const snapshot = result.history[index];
     rows.push(
       [
-        s.tick,
-        s.day,
-        s.light,
-        s.o2,
-        s.co2,
-        s.plants,
-        s.herbivores,
-        s.carnivores,
-        s.insects,
-        s.avgWater,
-        s.drinkableCells,
+        snapshot.tick,
+        snapshot.day,
+        snapshot.light,
+        snapshot.o2,
+        snapshot.co2,
+        snapshot.plants,
+        snapshot.herbivores,
+        snapshot.carnivores,
+        snapshot.insects,
+        snapshot.avgWater,
+        snapshot.drinkableCells,
       ].join(','),
     );
   }
@@ -152,19 +181,23 @@ function writeCsv(result, filePath) {
   fs.writeFileSync(filePath, `${rows.join('\n')}\n`, 'utf8');
 }
 
-function resolveJsonOutputPath(filePath, compressed) {
+function resolveJsonOutputPath(filePath: string, compressed: boolean): string {
   if (!compressed) {
     return filePath;
   }
   return filePath.endsWith('.gz') ? filePath : `${filePath}.gz`;
 }
 
-function writeJsonRecording(result, filePath, compressed = true) {
+function writeJsonRecording(
+  result: SimulationResult,
+  filePath: string,
+  compressed = true,
+): string {
   const resolvedPath = resolveJsonOutputPath(filePath, compressed);
   ensureParentDir(resolvedPath);
-  const payload = {
+  const payload: ReplayRecording = {
     recordingType: 'terrarium-tick-replay',
-    replay: result.replay,
+    replay: result.replay!,
     outcome: result.outcome,
     config: result.config,
   };
@@ -179,19 +212,19 @@ function writeJsonRecording(result, filePath, compressed = true) {
   return resolvedPath;
 }
 
-function loadReplay(filePath) {
+function loadReplay(filePath: string): ReplayRecording {
   const buffer = fs.readFileSync(filePath);
   const raw = filePath.endsWith('.gz')
     ? zlib.gunzipSync(buffer).toString('utf8')
     : buffer.toString('utf8');
-  const parsed = JSON.parse(raw);
+  const parsed = JSON.parse(raw) as ReplayRecording;
   if (!parsed || !parsed.replay || !Array.isArray(parsed.replay.frames)) {
     throw new Error('Invalid replay file: expected replay.frames array');
   }
   return parsed;
 }
 
-function findLatestReplayFile(dirPath) {
+function findLatestReplayFile(dirPath: string): string | null {
   if (!fs.existsSync(dirPath)) {
     return null;
   }
@@ -206,12 +239,12 @@ function findLatestReplayFile(dirPath) {
         mtimeMs: fs.statSync(fullPath).mtimeMs,
       };
     })
-    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+    .sort((left, right) => right.mtimeMs - left.mtimeMs);
 
   return files.length ? files[0].fullPath : null;
 }
 
-function resolveReplayPath(replayPath) {
+function resolveReplayPath(replayPath: string | null): string {
   if (replayPath && replayPath !== 'latest') {
     if (fs.existsSync(replayPath)) {
       return replayPath;
@@ -234,21 +267,25 @@ function resolveReplayPath(replayPath) {
   );
 }
 
-function terrainChar(value) {
+function terrainChar(value: number): string {
   if (value === 0) return '.';
   if (value === 1) return '~';
   if (value === 2) return ':';
   return ' ';
 }
 
-function terrainEmoji(value) {
+function terrainEmoji(value: number): string {
   if (value === 0) return '🟫';
   if (value === 1) return '🟦';
   if (value === 2) return '🟨';
   return '⬛';
 }
 
-function resolveReplayViewport(config, emojiMode, worldSize) {
+function resolveReplayViewport(
+  config: SimulationCliConfig,
+  emojiMode: boolean,
+  worldSize: number,
+): { width: number; height: number } {
   if (config.nativeSize) {
     return { width: worldSize, height: worldSize };
   }
@@ -268,11 +305,21 @@ function resolveReplayViewport(config, emojiMode, worldSize) {
   return { width: baseWidth, height: baseHeight };
 }
 
-function renderFrame(replayPayload, frameIndex, width, height, playback = {}) {
+function renderFrame(
+  replayPayload: ReplayRecording,
+  frameIndex: number,
+  width: number,
+  height: number,
+  playback: {
+    isPlaying?: boolean;
+    fps?: number;
+    emojiMode?: boolean;
+  } = {},
+): void {
   const replay = replayPayload.replay;
   const frame = replay.frames[frameIndex];
   const size = replay.size;
-  const map = new Array(width * height).fill(' ');
+  const map = new Array<string>(width * height).fill(' ');
   const useEmoji = Boolean(playback.emojiMode);
   const terrainSymbol = useEmoji ? terrainEmoji : terrainChar;
 
@@ -285,9 +332,9 @@ function renderFrame(replayPayload, frameIndex, width, height, playback = {}) {
     }
   }
 
-  const overlay = (cells, marker) => {
-    for (let i = 0; i < cells.length; i += 1) {
-      const cell = cells[i];
+  const overlay = (cells: number[], marker: string): void => {
+    for (let index = 0; index < cells.length; index += 1) {
+      const cell = cells[index];
       const worldX = cell % size;
       const worldY = Math.floor(cell / size);
       const px = Math.min(width - 1, Math.floor((worldX / size) * width));
@@ -301,7 +348,7 @@ function renderFrame(replayPayload, frameIndex, width, height, playback = {}) {
   overlay(frame.carnivores, useEmoji ? '🦂' : 'C');
   overlay(frame.insectEggs || [], useEmoji ? '🥚' : 'o');
 
-  const lines = [];
+  const lines: string[] = [];
   lines.push(
     `Tick ${String(frame.tick).padStart(3)} / ${replay.frames.length - 1}   ` +
       `O2=${frame.o2.toFixed(2)} CO2=${frame.co2.toFixed(2)}   ` +
@@ -336,8 +383,8 @@ function renderFrame(replayPayload, frameIndex, width, height, playback = {}) {
     lines.push('  - none');
   } else {
     const maxEvents = 8;
-    for (let i = 0; i < Math.min(maxEvents, tickEvents.length); i += 1) {
-      lines.push(`  - ${tickEvents[i]}`);
+    for (let index = 0; index < Math.min(maxEvents, tickEvents.length); index += 1) {
+      lines.push(`  - ${tickEvents[index]}`);
     }
     if (tickEvents.length > maxEvents) {
       lines.push(`  - ... ${tickEvents.length - maxEvents} more`);
@@ -350,8 +397,8 @@ function renderFrame(replayPayload, frameIndex, width, height, playback = {}) {
   const startTickIndex = Math.max(0, frameIndex - historyWindow);
   let historyPrinted = false;
 
-  for (let i = startTickIndex; i < frameIndex; i += 1) {
-    const historyFrame = replay.frames[i];
+  for (let index = startTickIndex; index < frameIndex; index += 1) {
+    const historyFrame = replay.frames[index];
     const historyEvents = Array.isArray(historyFrame.events)
       ? historyFrame.events
       : [];
@@ -362,9 +409,7 @@ function renderFrame(replayPayload, frameIndex, width, height, playback = {}) {
     historyPrinted = true;
     const preview = historyEvents.slice(0, 3).join(' | ');
     const suffix = historyEvents.length > 3 ? ' | ...' : '';
-    lines.push(
-      `  t=${String(historyFrame.tick).padStart(3)}: ${preview}${suffix}`,
-    );
+    lines.push(`  t=${String(historyFrame.tick).padStart(3)}: ${preview}${suffix}`);
   }
 
   if (!historyPrinted) {
@@ -375,13 +420,24 @@ function renderFrame(replayPayload, frameIndex, width, height, playback = {}) {
   process.stdout.write(`${lines.join('\n')}\n`);
 }
 
-function startReplayInteractive(replayPayload, width, height, options = {}) {
+function startReplayInteractive(
+  replayPayload: ReplayRecording,
+  width: number,
+  height: number,
+  options: {
+    autoplay?: boolean;
+    emojiMode?: boolean;
+    nativeSize?: boolean;
+    autoFit?: boolean;
+    fps?: number;
+  } = {},
+): void {
   let index = 0;
   let isPlaying = Boolean(options.autoplay);
   let emojiMode = Boolean(options.emojiMode);
   let nativeSize = Boolean(options.nativeSize);
   let fps = Math.max(1, Number(options.fps) || 4);
-  let timer = null;
+  let timer: NodeJS.Timeout | null = null;
   const worldSize = replayPayload.replay.size;
   const sampledAsciiViewport = {
     width,
@@ -397,24 +453,20 @@ function startReplayInteractive(replayPayload, width, height, options = {}) {
   let renderWidth = width;
   let renderHeight = height;
 
-  const updateViewport = () => {
+  const updateViewport = (): void => {
     if (nativeSize) {
       renderWidth = worldSize;
       renderHeight = worldSize;
       return;
     }
 
-    renderWidth = emojiMode
-      ? sampledEmojiViewport.width
-      : sampledAsciiViewport.width;
-    renderHeight = emojiMode
-      ? sampledEmojiViewport.height
-      : sampledAsciiViewport.height;
+    renderWidth = emojiMode ? sampledEmojiViewport.width : sampledAsciiViewport.width;
+    renderHeight = emojiMode ? sampledEmojiViewport.height : sampledAsciiViewport.height;
   };
 
   updateViewport();
 
-  const draw = () => {
+  const draw = (): void => {
     renderFrame(replayPayload, index, renderWidth, renderHeight, {
       isPlaying,
       fps,
@@ -422,7 +474,7 @@ function startReplayInteractive(replayPayload, width, height, options = {}) {
     });
   };
 
-  const stopAuto = () => {
+  const stopAuto = (): void => {
     if (timer) {
       clearInterval(timer);
       timer = null;
@@ -430,7 +482,7 @@ function startReplayInteractive(replayPayload, width, height, options = {}) {
     isPlaying = false;
   };
 
-  const startAuto = () => {
+  const startAuto = (): void => {
     if (timer) {
       clearInterval(timer);
     }
@@ -464,14 +516,14 @@ function startReplayInteractive(replayPayload, width, height, options = {}) {
   stdin.resume();
   stdin.setEncoding('utf8');
 
-  const cleanup = () => {
+  const cleanup = (): void => {
     stopAuto();
     stdin.removeListener('data', onKey);
     stdin.setRawMode(false);
     stdin.pause();
   };
 
-  const onKey = (key) => {
+  const onKey = (key: string): void => {
     if (key === '\u0003' || key === 'q') {
       cleanup();
       return;
@@ -541,13 +593,16 @@ function startReplayInteractive(replayPayload, width, height, options = {}) {
   stdin.on('data', onKey);
 }
 
-function collectRunDiagnostics(result) {
+function collectRunDiagnostics(result: SimulationResult): {
+  eggFramesAfter10: number;
+  maxEggs: number;
+} {
   const history = Array.isArray(result.history) ? result.history : [];
   const eggFramesAfter10 = history.filter(
-    (s) => s.tick >= 10 && Number(s.eggs || 0) > 0,
+    (snapshot) => snapshot.tick >= 10 && Number(snapshot.eggs || 0) > 0,
   ).length;
   const maxEggs = history.reduce(
-    (max, s) => Math.max(max, Number(s.eggs || 0)),
+    (max, snapshot) => Math.max(max, Number(snapshot.eggs || 0)),
     0,
   );
 
@@ -557,10 +612,17 @@ function collectRunDiagnostics(result) {
   };
 }
 
-function printRun(result) {
+function printRun(result: SimulationResult): void {
   const start = result.history[0] || result.finalState;
   const end = result.finalState;
-  const diagnostics = result.diagnostics || {};
+  const diagnostics = result.diagnostics || {
+    herbivoreBirths: 0,
+    carnivoreBirths: 0,
+    herbivoreDeaths: 0,
+    carnivoreDeaths: 0,
+    herbivoreKillsByCarnivores: 0,
+    carnivoreKillsByCarnivores: 0,
+  };
   const derived = collectRunDiagnostics(result);
 
   console.log('Simulation summary');
@@ -591,15 +653,24 @@ function printRun(result) {
   );
 }
 
-function runSweep(baseConfig) {
+function runSweep(baseConfig: SimulationConfig): void {
   const seeds = ['alpha', 'beta', 'gamma', 'delta', 'epsilon'];
-  const rows = [];
+  const rows: Array<{
+    seed: string;
+    outcome: string;
+    reason: string;
+    tick: number;
+    plants: number;
+    insects: number;
+    o2: number;
+    co2: number;
+  }> = [];
 
-  for (let i = 0; i < seeds.length; i += 1) {
-    const cfg = { ...baseConfig, seed: seeds[i] };
-    const result = runSimulation(cfg);
+  for (let index = 0; index < seeds.length; index += 1) {
+    const config = { ...baseConfig, seed: seeds[index] };
+    const result = runSimulation(config);
     rows.push({
-      seed: seeds[i],
+      seed: seeds[index],
       outcome: result.outcome.type,
       reason: result.outcome.reason,
       tick: result.finalTick,
@@ -612,8 +683,8 @@ function runSweep(baseConfig) {
 
   console.log('Sweep results');
   console.log('-------------');
-  for (let i = 0; i < rows.length; i += 1) {
-    const row = rows[i];
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
     console.log(
       `${row.seed.padEnd(8)} outcome=${row.outcome.padEnd(4)} tick=${String(row.tick).padEnd(3)} ` +
         `plants=${String(row.plants).padEnd(5)} insects=${String(row.insects).padEnd(5)} ` +
@@ -622,7 +693,7 @@ function runSweep(baseConfig) {
   }
 }
 
-function main() {
+function main(): void {
   const config = parseArgs(process.argv.slice(2));
 
   if (config.replayPath) {

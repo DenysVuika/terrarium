@@ -1,14 +1,23 @@
-'use strict';
+import type { Rng } from './rng.ts';
 
-const TERRAIN = {
+export const TERRAIN = {
   SOIL: 0,
   WATER: 1,
   SAND: 2,
   EMPTY: 3,
-};
+} as const;
 
-class World {
-  constructor(size, rng) {
+type TerrainValue = (typeof TERRAIN)[keyof typeof TERRAIN];
+
+export class World {
+  size: number;
+  length: number;
+  rng: Rng;
+  terrain: Uint8Array;
+  water: Float32Array;
+  nutrients: Float32Array;
+
+  constructor(size: number, rng: Rng) {
     this.size = size;
     this.length = size * size;
     this.rng = rng;
@@ -20,22 +29,22 @@ class World {
     this.initializeResources();
   }
 
-  index(x, y) {
+  index(x: number, y: number): number {
     return y * this.size + x;
   }
 
-  coords(index) {
+  coords(index: number): { x: number; y: number } {
     const y = Math.floor(index / this.size);
     return { x: index - y * this.size, y };
   }
 
-  inBounds(x, y) {
+  inBounds(x: number, y: number): boolean {
     return x >= 0 && y >= 0 && x < this.size && y < this.size;
   }
 
-  neighbors4(index) {
+  neighbors4(index: number): number[] {
     const { x, y } = this.coords(index);
-    const out = [];
+    const out: number[] = [];
     if (x > 0) out.push(this.index(x - 1, y));
     if (x + 1 < this.size) out.push(this.index(x + 1, y));
     if (y > 0) out.push(this.index(x, y - 1));
@@ -43,9 +52,9 @@ class World {
     return out;
   }
 
-  neighbors8(index) {
+  neighbors8(index: number): number[] {
     const { x, y } = this.coords(index);
-    const out = [];
+    const out: number[] = [];
 
     for (let dy = -1; dy <= 1; dy += 1) {
       for (let dx = -1; dx <= 1; dx += 1) {
@@ -64,30 +73,35 @@ class World {
     return out;
   }
 
-  generateTerrain() {
+  generateTerrain(): void {
     this.terrain.fill(TERRAIN.EMPTY);
 
     this.paintPatches(TERRAIN.SOIL, 24, 600, 2500);
     this.paintPatches(TERRAIN.WATER, 7, 220, 900);
     this.paintPatches(TERRAIN.SAND, 12, 300, 1200);
 
-    for (let i = 0; i < this.length; i += 1) {
-      if (this.terrain[i] === TERRAIN.EMPTY && this.rng.chance(0.2)) {
-        this.terrain[i] = TERRAIN.SOIL;
+    for (let index = 0; index < this.length; index += 1) {
+      if (this.terrain[index] === TERRAIN.EMPTY && this.rng.chance(0.2)) {
+        this.terrain[index] = TERRAIN.SOIL;
       }
     }
   }
 
-  paintPatches(type, count, minSize, maxSize) {
-    for (let p = 0; p < count; p += 1) {
+  paintPatches(
+    type: TerrainValue,
+    count: number,
+    minSize: number,
+    maxSize: number,
+  ): void {
+    for (let patch = 0; patch < count; patch += 1) {
       const target = this.rng.int(minSize, maxSize);
       const start = this.rng.int(0, this.length - 1);
-      const frontier = [start];
+      const frontier: number[] = [start];
       let painted = 0;
 
       while (frontier.length && painted < target) {
         const idx = frontier.pop();
-        if (this.terrain[idx] === type) {
+        if (idx === undefined || this.terrain[idx] === type) {
           continue;
         }
 
@@ -95,8 +109,8 @@ class World {
         painted += 1;
 
         const neighbors = this.neighbors4(idx);
-        for (let n = 0; n < neighbors.length; n += 1) {
-          const neighbor = neighbors[n];
+        for (let neighborIndex = 0; neighborIndex < neighbors.length; neighborIndex += 1) {
+          const neighbor = neighbors[neighborIndex];
           if (this.rng.chance(0.75)) {
             frontier.push(neighbor);
           }
@@ -109,51 +123,48 @@ class World {
     }
   }
 
-  initializeResources() {
-    for (let i = 0; i < this.length; i += 1) {
-      const terrain = this.terrain[i];
+  initializeResources(): void {
+    for (let index = 0; index < this.length; index += 1) {
+      const terrain = this.terrain[index];
       if (terrain === TERRAIN.SOIL) {
-        this.nutrients[i] = 200;
-        this.water[i] = 50;
+        this.nutrients[index] = 200;
+        this.water[index] = 50;
       } else if (terrain === TERRAIN.WATER) {
-        this.nutrients[i] = 0;
-        this.water[i] = 100;
+        this.nutrients[index] = 0;
+        this.water[index] = 100;
       } else if (terrain === TERRAIN.SAND) {
-        this.nutrients[i] = 0;
-        this.water[i] = 10;
+        this.nutrients[index] = 0;
+        this.water[index] = 10;
       } else {
-        this.nutrients[i] = 0;
-        this.water[i] = 15;
+        this.nutrients[index] = 0;
+        this.water[index] = 15;
       }
     }
   }
 
-  randomCell(predicate) {
-    for (let i = 0; i < 2000; i += 1) {
+  randomCell(predicate: (index: number) => boolean): number {
+    for (let attempt = 0; attempt < 2000; attempt += 1) {
       const idx = this.rng.int(0, this.length - 1);
       if (predicate(idx)) {
         return idx;
       }
     }
+
     for (let idx = 0; idx < this.length; idx += 1) {
       if (predicate(idx)) {
         return idx;
       }
     }
+
     return -1;
   }
 
-  isSoil(index) {
+  isSoil(index: number): boolean {
     return this.terrain[index] === TERRAIN.SOIL;
   }
 
-  isWalkable(index) {
-    const t = this.terrain[index];
-    return t === TERRAIN.SOIL || t === TERRAIN.SAND;
+  isWalkable(index: number): boolean {
+    const terrain = this.terrain[index];
+    return terrain === TERRAIN.SOIL || terrain === TERRAIN.SAND;
   }
 }
-
-module.exports = {
-  TERRAIN,
-  World,
-};
