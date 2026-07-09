@@ -15,15 +15,12 @@ export class Herbivore extends Insect {
     energy: number,
     config: SimulationConfig,
   ) {
-    super(id, cell, energy);
+    super('herbivore', id, cell, energy);
     this._config = config;
   }
 
   // ── Species parameters ──────────────────────────────────────────────────────
 
-  protected get isCarnivore(): boolean {
-    return false;
-  }
   protected get eggStageTicks(): number {
     return this._config.eggStageTicks;
   }

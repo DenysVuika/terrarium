@@ -2,6 +2,7 @@ import type { SimContext } from '../context.ts';
 import { TERRAIN } from '../world.ts';
 import { Entity } from './entity.ts';
 
+export type InsectKind = 'herbivore' | 'carnivore';
 export type InsectStage = 'egg' | 'larva' | 'adult';
 
 function clamp(value: number, min: number, max: number): number {
@@ -22,6 +23,7 @@ function clamp(value: number, min: number, max: number): number {
  *   - extraMoveBias()       — per-cell score added in moveRandom (e.g. plant proximity)
  */
 export abstract class Insect extends Entity {
+  readonly kind: InsectKind;
   lastCell: number;
   age: number;
   stage: InsectStage;
@@ -31,8 +33,9 @@ export abstract class Insect extends Entity {
   cooldown: number;
   stepCharge: number;
 
-  constructor(id: string, cell: number, energy: number) {
+  constructor(kind: InsectKind, id: string, cell: number, energy: number) {
     super(id, cell);
+    this.kind = kind;
     this.lastCell = -1;
     this.age = 0;
     this.stage = 'egg';
@@ -45,7 +48,6 @@ export abstract class Insect extends Entity {
 
   // ── Species-specific parameters ────────────────────────────────────────────
 
-  protected abstract get isCarnivore(): boolean;
   protected abstract get eggStageTicks(): number;
   protected abstract get larvaStageTicks(): number;
   protected abstract get maxAge(): number;
