@@ -335,6 +335,12 @@ node src/simulate.js --replay runs/my-seed.json.gz
 node src/simulate.js --replay runs/my-seed.json.gz --autoplay --fps 6
 ```
 
+- Replay with native board dimensions (full 250x250 render):
+
+```bash
+node src/simulate.js --replay latest --native-size
+```
+
 ### **CLI Options**
 
 - `--ticks <number>`: total ticks (default `100`)
@@ -359,6 +365,7 @@ node src/simulate.js --replay runs/my-seed.json.gz --autoplay --fps 6
 - `--ascii`: force ASCII render mode
 - `--auto-fit`: auto-fit replay viewport for emoji mode (default: on)
 - `--no-auto-fit`: disable auto-fit and keep configured preview dimensions
+- `--native-size`: render replay at world dimensions (`size x size`) instead of sampled preview
 - `--preview-width <number>`: replay render width (default `64`)
 - `--preview-height <number>`: replay render height (default `24`)
 
@@ -397,9 +404,11 @@ The simulator uses baseline defaults from `src/config.js` and then applies CLI o
 - `Home`: jump to first tick
 - `End`: jump to last tick
 - `e`: toggle emoji/ascii mode
+- `n`: toggle sampled/native viewport mode
 - `q`: quit replay
 
-When auto-fit is enabled, emoji mode uses a smaller viewport by default for better readability.
+When auto-fit is enabled, emoji mode uses a smaller sampled viewport by default for better readability.
+Use `--native-size` when you want the board view to match the true world dimensions (for example 250x250).
 
 ### **Replay Timeline Panel**
 

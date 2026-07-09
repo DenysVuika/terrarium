@@ -19,6 +19,7 @@ function parseArgs(argv) {
     autoplay: false,
     emojiMode: true,
     autoFit: true,
+    nativeSize: false,
     replayFps: 4,
     previewWidth: 64,
     previewHeight: 24,
@@ -75,6 +76,8 @@ function parseArgs(argv) {
       args.autoFit = true;
     } else if (token === '--no-auto-fit') {
       args.autoFit = false;
+    } else if (token === '--native-size') {
+      args.nativeSize = true;
     } else if (token === '--fps') {
       args.replayFps = Number(argv[++i]);
     } else if (token === '--preview-width') {
@@ -245,7 +248,11 @@ function terrainEmoji(value) {
   return '⬛';
 }
 
-function resolveReplayViewport(config, emojiMode) {
+function resolveReplayViewport(config, emojiMode, worldSize) {
+  if (config.nativeSize) {
+    return { width: worldSize, height: worldSize };
+  }
+
   const baseWidth = Math.max(24, config.previewWidth);
   const baseHeight = Math.max(10, config.previewHeight);
 
@@ -310,7 +317,10 @@ function renderFrame(replayPayload, frameIndex, width, height, playback = {}) {
   );
   lines.push(`Render mode: ${useEmoji ? 'emoji' : 'ascii'}`);
   lines.push(
-    'Controls: Left/Right step, Space autoplay, Up/Down speed, Home/End jump, e mode, q quits.',
+    `Board view: ${width}x${height} ${width === size && height === size ? '(native)' : `(sampled from ${size}x${size})`}`,
+  );
+  lines.push(
+    'Controls: Left/Right step, Space autoplay, Up/Down speed, Home/End jump, e mode, n viewport, q quits.',
   );
   lines.push('');
 
@@ -369,20 +379,40 @@ function startReplayInteractive(replayPayload, width, height, options = {}) {
   let index = 0;
   let isPlaying = Boolean(options.autoplay);
   let emojiMode = Boolean(options.emojiMode);
+  let nativeSize = Boolean(options.nativeSize);
   let fps = Math.max(1, Number(options.fps) || 4);
   let timer = null;
-  const asciiViewport = {
+  const worldSize = replayPayload.replay.size;
+  const sampledAsciiViewport = {
     width,
     height,
   };
-  const emojiViewport = options.autoFit
+  const sampledEmojiViewport = options.autoFit
     ? {
         width: Math.min(width, 40),
         height: Math.min(height, 12),
       }
-    : asciiViewport;
-  let renderWidth = emojiMode ? emojiViewport.width : asciiViewport.width;
-  let renderHeight = emojiMode ? emojiViewport.height : asciiViewport.height;
+    : sampledAsciiViewport;
+
+  let renderWidth = width;
+  let renderHeight = height;
+
+  const updateViewport = () => {
+    if (nativeSize) {
+      renderWidth = worldSize;
+      renderHeight = worldSize;
+      return;
+    }
+
+    renderWidth = emojiMode
+      ? sampledEmojiViewport.width
+      : sampledAsciiViewport.width;
+    renderHeight = emojiMode
+      ? sampledEmojiViewport.height
+      : sampledAsciiViewport.height;
+  };
+
+  updateViewport();
 
   const draw = () => {
     renderFrame(replayPayload, index, renderWidth, renderHeight, {
@@ -457,8 +487,13 @@ function startReplayInteractive(replayPayload, width, height, options = {}) {
     }
     if (key === 'e' || key === 'E') {
       emojiMode = !emojiMode;
-      renderWidth = emojiMode ? emojiViewport.width : asciiViewport.width;
-      renderHeight = emojiMode ? emojiViewport.height : asciiViewport.height;
+      updateViewport();
+      draw();
+      return;
+    }
+    if (key === 'n' || key === 'N') {
+      nativeSize = !nativeSize;
+      updateViewport();
       draw();
       return;
     }
@@ -593,19 +628,19 @@ function main() {
   if (config.replayPath) {
     const replayFilePath = resolveReplayPath(config.replayPath);
     const replayPayload = loadReplay(replayFilePath);
-    const viewport = resolveReplayViewport(config, config.emojiMode);
-    console.log(`Replay file: ${replayFilePath}`);
-    startReplayInteractive(
-      replayPayload,
-      viewport.width,
-      viewport.height,
-      {
-        autoplay: config.autoplay,
-        emojiMode: config.emojiMode,
-        autoFit: config.autoFit,
-        fps: config.replayFps,
-      },
+    const viewport = resolveReplayViewport(
+      config,
+      config.emojiMode,
+      replayPayload.replay.size,
     );
+    console.log(`Replay file: ${replayFilePath}`);
+    startReplayInteractive(replayPayload, viewport.width, viewport.height, {
+      autoplay: config.autoplay,
+      emojiMode: config.emojiMode,
+      nativeSize: config.nativeSize,
+      autoFit: config.autoFit,
+      fps: config.replayFps,
+    });
     return;
   }
 
