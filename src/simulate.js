@@ -41,6 +41,10 @@ function parseArgs(argv) {
     } else if (token === '--lid') {
       const mode = String(argv[++i]).toLowerCase();
       args.lidOpen = mode === 'open';
+    } else if (token === '--day-ticks') {
+      args.dayTicks = Number(argv[++i]);
+    } else if (token === '--night-ticks') {
+      args.nightTicks = Number(argv[++i]);
     } else if (token === '--sweep') {
       args.sweep = true;
     } else if (token === '--record-json') {

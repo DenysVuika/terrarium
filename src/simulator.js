@@ -27,6 +27,7 @@ class Simulator {
 
     this.tick = 0;
     this.day = true;
+    this.phaseTicksElapsed = 0;
 
     this.o2 = 100;
     this.co2 = 50;
@@ -229,13 +230,29 @@ class Simulator {
     };
   }
 
+  getCurrentLight() {
+    return this.day ? (this.config.lidOpen ? 100 : 50) : 0;
+  }
+
+  advanceDayNightPhase() {
+    const phaseLength = this.day
+      ? this.config.dayTicks
+      : this.config.nightTicks;
+    const safePhaseLength = Math.max(1, Number(phaseLength) || 1);
+    this.phaseTicksElapsed += 1;
+
+    if (this.phaseTicksElapsed >= safePhaseLength) {
+      this.day = !this.day;
+      this.phaseTicksElapsed = 0;
+    }
+  }
+
   step() {
     this.tick += 1;
-    this.day = !this.day;
     this.currentTickEvents = [];
     this.tickStats = this.createTickStats();
 
-    const light = this.day ? (this.config.lidOpen ? 100 : 50) : 0;
+    const light = this.getCurrentLight();
     this.addEvent(`cycle: ${this.day ? 'day' : 'night'} light=${light}`);
 
     this.processWeatherAndCellResources();
@@ -246,6 +263,7 @@ class Simulator {
     this.evaluateOutcome();
 
     this.history.push(this.snapshot());
+    this.advanceDayNightPhase();
   }
 
   snapshot() {
@@ -269,7 +287,7 @@ class Simulator {
     return {
       tick: this.tick,
       day: this.day,
-      light: this.day ? (this.config.lidOpen ? 100 : 50) : 0,
+      light: this.getCurrentLight(),
       o2: Number(this.o2.toFixed(2)),
       co2: Number(this.co2.toFixed(2)),
       plants: plantCount,
@@ -364,10 +382,9 @@ class Simulator {
         300,
       );
 
-      const conditionsGood =
-        light >= 50 &&
-        this.world.water[cell] > 30 &&
-        this.world.nutrients[cell] > 20;
+      const hasResources =
+        this.world.water[cell] > 30 && this.world.nutrients[cell] > 20;
+      const conditionsGood = light >= 50 && hasResources;
 
       if (conditionsGood) {
         plant.growth = clamp(plant.growth + 1 * co2Penalty, 0, 100);
@@ -378,13 +395,25 @@ class Simulator {
             plant.recoverTicks = 0;
           }
         }
+      } else if (light === 0 && hasResources) {
+        // Darkness with healthy resources is dormancy, not full stress.
+        plant.growth = clamp(
+          plant.growth - this.config.plantNightShrink,
+          0,
+          100,
+        );
+        plant.recoverTicks = 0;
       } else {
         if (plant.growth < 10) {
           toRemove.push(cell);
           continue;
         }
 
-        plant.growth = clamp(plant.growth - 0.5, 0, 100);
+        plant.growth = clamp(
+          plant.growth - this.config.plantStressShrink,
+          0,
+          100,
+        );
         plant.wilted = true;
         plant.recoverTicks = 0;
       }
@@ -501,9 +530,13 @@ class Simulator {
   updateInsectLifecycle(entity, occupied, isCarnivore) {
     entity.age += 1;
     entity.stageTicks += 1;
-    entity.energy -= isCarnivore
+    const baseMetabolism = isCarnivore
       ? this.config.carnivoreMetabolismPerTick
       : this.config.herbivoreMetabolismPerTick;
+    const metabolismMultiplier = this.day
+      ? 1
+      : this.config.nightMetabolismMultiplier;
+    entity.energy -= baseMetabolism * metabolismMultiplier;
 
     if (this.o2 < 10) {
       entity.energy -= 1;
@@ -533,7 +566,10 @@ class Simulator {
     if (entity.stage === 'egg' && entity.stageTicks >= eggStageTicks) {
       entity.stage = 'larva';
       entity.stageTicks = 0;
-    } else if (entity.stage === 'larva' && entity.stageTicks >= larvaStageTicks) {
+    } else if (
+      entity.stage === 'larva' &&
+      entity.stageTicks >= larvaStageTicks
+    ) {
       entity.stage = 'adult';
       entity.stageTicks = 0;
     }
@@ -567,7 +603,10 @@ class Simulator {
     const maxAge = isCarnivore
       ? this.config.carnivoreMaxAge
       : this.config.herbivoreMaxAge;
-    if (entity.starvationTicks >= 3 || entity.age >= maxAge) {
+    const starvationLimit = isCarnivore
+      ? this.config.carnivoreStarvationTicks
+      : this.config.herbivoreStarvationTicks;
+    if (entity.starvationTicks >= starvationLimit || entity.age >= maxAge) {
       entity.alive = false;
       occupied.delete(entity.cell);
       this.world.nutrients[entity.cell] = clamp(
@@ -608,9 +647,22 @@ class Simulator {
       herbivore.energy += 5;
     }
 
+    const localHerbivores = this.world
+      .neighbors8(herbivore.cell)
+      .filter((n) =>
+        this.herbivores.some((h) => h.alive && h.cell === n && h.id !== herbivore.id),
+      ).length;
+    const liveHerbivores = this.herbivores.filter((h) => h.alive).length;
+    const herbivoreGlobalCap = Math.max(
+      1,
+      Math.floor(this.plants.size * this.config.herbivorePopulationCapPerPlant),
+    );
+
     if (
       herbivore.energy >= this.config.herbivoreBreedEnergyMin &&
       herbivore.cooldown <= 0 &&
+      localHerbivores < this.config.herbivoreBreedLocalCap &&
+      liveHerbivores < herbivoreGlobalCap &&
       this.rng.chance(this.config.herbivoreBreedChance)
     ) {
       const spawnCell = this.findSpawnCell(herbivore.cell, occupied);
@@ -718,9 +770,25 @@ class Simulator {
       }
     }
 
+    const localCarnivores = this.world
+      .neighbors8(carnivore.cell)
+      .filter((n) =>
+        this.carnivores.some((c) => c.alive && c.cell === n && c.id !== carnivore.id),
+      ).length;
+    const liveCarnivores = this.carnivores.filter((c) => c.alive).length;
+    const liveHerbivores = this.herbivores.filter((h) => h.alive).length;
+    const carnivoreGlobalCap = Math.max(
+      1,
+      Math.floor(
+        liveHerbivores * this.config.carnivorePopulationCapPerHerbivore,
+      ),
+    );
+
     if (
       carnivore.energy >= this.config.carnivoreBreedEnergyMin &&
       carnivore.cooldown <= 0 &&
+      localCarnivores < this.config.carnivoreBreedLocalCap &&
+      liveCarnivores < carnivoreGlobalCap &&
       this.rng.chance(this.config.carnivoreBreedChance)
     ) {
       const spawnCell = this.findSpawnCell(carnivore.cell, occupied);

@@ -6,7 +6,7 @@ flowchart TD
     C1[Egg] -->|2 ticks| C2[Larva]
     C2 -->|1 tick| C3[Adult]
 
-    C3 --> C4[Passive: energy -0.05, AP +1]
+    C3 --> C4[Passive energy minus 0.04 with night multiplier 0.7 and AP plus 1]
     C4 --> C5{Nearby drinkable water in 8-neighborhood?}
     C5 -->|Yes| C6[Drink: remove 0.5 water]
     C5 -->|No| C7[Dehydration penalty: -0.2 energy]
@@ -24,13 +24,13 @@ flowchart TD
 
     C8 -->|No| C16{Nearest herbivore within radius 4?}
     C16 -->|Yes| C17[Move toward prey]
-    C16 -->|No| C18{Rest roll 65%?}
-    C18 -->|Yes| C19[Rest and recover +0.12 energy]
+    C16 -->|No| C18{Rest roll 85 pct}
+    C18 -->|Yes| C19[Rest and recover plus 0.3 energy]
     C18 -->|No| C20[Roam randomly]
 
     C17 --> C21[Move cost: step 1.0 soil or 1.5 sand]
     C20 --> C21
-    C21 --> C22[Energy -0.7 per move]
+    C21 --> C22[Energy minus 0.5 per move]
     C22 --> C23{Moved on sand?}
     C23 -->|Yes| C24[AP -1 terrain strain]
     C23 -->|No| C25[No AP terrain penalty]
@@ -44,13 +44,13 @@ flowchart TD
     C29 -->|Yes| C30[Gain +5 energy and +5 AP]
     C29 -->|No| C31[No kill bonus]
 
-    C30 --> C32{Reproduction gate passes?<br/>Energy >= 18, cooldown 0, chance 18%}
+    C30 --> C32{Reproduction gate energy ge 16 cooldown 0 chance 14 pct and local plus global cap checks}
     C31 --> C32
     C28 --> C32
     C32 -->|Yes and spawn space available| C33[Lay egg: energy -7, cooldown 16, AP = 0]
     C32 -->|No| C34[No reproduction]
 
-    C33 --> C35{Starvation >= 3 or age >= max?}
+    C33 --> C35{Starvation ge 8 or age ge 180}
     C34 --> C35
     C35 -->|Yes| C36[Die: +20 nutrients, AP = 0]
     C35 -->|No| C3

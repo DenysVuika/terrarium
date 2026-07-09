@@ -48,6 +48,9 @@
   - **Sprout (20-80)**: -0.5 nutrients/tick.
   - **Mature (80-100)**: -1 nutrient/tick. Can reproduce.
 - **Growth**: +1 level/tick if **Light >= 50%**, **Water > 30%**, **Nutrients > 20%**.
+- **Night Dormancy (Long Phases)**:
+  - If `light = 0` but water/nutrients are still sufficient, plants shrink slowly by **-0.15/tick** (dormancy path).
+  - Under true stress (insufficient water/nutrients), plants shrink by **-0.5/tick**.
 - **Reproduction**:
   - **Conditions**: Mature, adjacent empty soil cell, nutrients > 50%.
   - **Cost**: -10 nutrients from parent cell.
@@ -64,13 +67,13 @@
 
 - **Aging**: Egg (4 ticks) → Larva (2 ticks) → Adult.
 - **Energy**:
-  - **Passive Loss**: -0.1/tick.
+  - **Passive Loss**: -0.1/tick (scaled by `nightMetabolismMultiplier = 0.7` at night).
   - **No nearby drinkable water**: -0.5 energy/tick.
-  - **Starvation**: Die if energy ≤ 0 for 3 ticks.
+  - **Starvation**: Die if energy ≤ 0 for 5 ticks.
 - **Movement**:
   - Uses a step-charge model (recharge +1.2/tick, cap 2.5).
-  - **Soil**: cost 1.0 step-charge, -1 energy.
-  - **Sand**: cost 1.5 step-charge, -1 energy.
+  - **Soil**: cost 1.0 step-charge, -0.8 energy.
+  - **Sand**: cost 1.5 step-charge, -0.8 energy.
   - Roaming uses anti-backtrack bias to reduce oscillation.
 - **Eating**:
   - **Targeting**: Scan within radius 2 and move toward nearest plant.
@@ -79,8 +82,13 @@
   - **20% chance to escape** carnivore attacks.
   - **Cost**: -1 energy, move 1 cell away (8-directional).
 - **Reproduction**:
-  - **Conditions**: Energy ≥ 14, cooldown 16, 20% chance, adjacent empty walkable cell.
+  - **Conditions**: Energy ≥ 14, cooldown 16, 14% chance, adjacent empty walkable cell.
+  - **Crowding gates**:
+    - Local gate: reproduction blocked when nearby herbivore count in 8-neighborhood reaches 4.
+    - Global gate: reproduction blocked when live herbivores reach `plants * 0.012`.
   - **Cost**: -6 energy.
+- **Longevity**:
+  - **Max age**: 320 ticks.
 
 **🔗 Diagram**: [Terrarium: Herbivore Insects Lifecycle](sandbox/terrarium-herbivore-insects-lifecycle.md)
 
@@ -90,17 +98,17 @@
 
 - **Aging**: Egg (2 ticks) → Larva (1 tick) → Adult.
 - **Energy**:
-  - **Passive Loss**: -0.05/tick.
+  - **Passive Loss**: -0.04/tick (scaled by `nightMetabolismMultiplier = 0.7` at night).
   - **No nearby drinkable water**: -0.2 energy/tick.
-  - **Starvation**: Die if energy ≤ 0 for 3 ticks.
+  - **Starvation**: Die if energy ≤ 0 for 8 ticks.
 - **Attack Points (AP)**:
   - **Max**: 10.
   - **Regeneration**: +1/tick (passive).
   - **Death**: AP resets to 0.
 - **Movement**:
   - Uses same step-charge model as herbivores.
-  - **Soil**: cost 1.0 step-charge, -0.7 energy.
-  - **Sand**: cost 1.5 step-charge, -0.7 energy, and -1 AP (terrain strain).
+  - **Soil**: cost 1.0 step-charge, -0.5 energy.
+  - **Sand**: cost 1.5 step-charge, -0.5 energy, and -1 AP (terrain strain).
 - **Combat**:
   - **Attack Cost**: 3 AP.
   - **Per-Turn Action Cap**: 1 attack action per tick, plus at most 1 chase.
@@ -115,10 +123,15 @@
   - **Chasing**:
     - If herbivore flees, carnivore can chase once per turn (1 step).
   - **No-prey rest behavior**:
-    - When no target herbivore is found, carnivore rests with 65% chance and recovers +0.12 energy.
+    - When no target herbivore is found, carnivore rests with 85% chance and recovers +0.3 energy.
 - **Reproduction**:
-  - **Conditions**: Energy ≥ 18, cooldown 16, 18% chance, adjacent empty walkable cell.
+  - **Conditions**: Energy ≥ 16, cooldown 16, 14% chance, adjacent empty walkable cell.
+  - **Crowding gates**:
+    - Local gate: reproduction blocked when nearby carnivore count in 8-neighborhood reaches 2.
+    - Global gate: reproduction blocked when live carnivores reach `herbivores * 0.45`.
   - **Cost**: -7 energy, AP = 0.
+- **Longevity**:
+  - **Max age**: 180 ticks.
 
 **🔗 Diagram**: [Terrarium: Carnivore Insects Lifecycle](sandbox/terrarium-carnivore-insects-lifecycle.md)
 
@@ -160,7 +173,7 @@
 
 ### **6. Game Loop (Per Tick)**
 
-1. **Day/Night Cycle**: Toggle light (day: 100%, night: 0%).
+1. **Day/Night Cycle**: Day and night each span configurable tick windows (`dayTicks` / `nightTicks`).
 2. **Weather**: Roll for rain/drought.
 3. **Resource Regeneration**: Soil +0.1 nutrients/cell, and water updates from weather + evaporation + seepage.
 4. **Entity Actions**:
@@ -190,8 +203,12 @@ Use this section as the source of truth if any diagram and prose disagree.
 | Herbivore flee roll | 20% escape success; 80% attack resolves |
 | Carnivore turn economy | Max 1 attack action and 1 chase per tick |
 | Insect lifecycle | Herbivore egg/larva: 4/2 ticks; carnivore egg/larva: 2/1 ticks |
-| Herbivore breeding gate | Energy >= 14, cooldown 16, chance 20%, cost 6 |
-| Carnivore breeding gate | Energy >= 18, cooldown 16, chance 18%, cost 7 |
+| Herbivore breeding gate | Energy >= 14, cooldown 16, chance 14%, cost 6 |
+| Carnivore breeding gate | Energy >= 16, cooldown 16, chance 14%, cost 7 |
+| Reproduction crowding controls | Herbivore local cap 4 and global cap plants \* 0.012; carnivore local cap 2 and global cap herbivores \* 0.45 |
+| Night metabolism | Insect passive metabolism is multiplied by 0.7 at night |
+| Starvation windows | Herbivore: 5 ticks at non-positive energy; carnivore: 8 ticks |
+| Lifespan contrast | Herbivores live much longer (max 320) than carnivores (max 180) |
 | Plant growth light threshold | Growth allowed at light >= 50 |
 | Decay rewards | Plant: +50 nutrients; insect: +20 nutrients |
 | Gas bounds | O₂/CO₂ are clamped to 0-100 each tick |
@@ -288,6 +305,12 @@ npm run simulate:sweep
 node src/simulate.js --ticks 100 --seed my-seed --plants 1800 --herbivores 180 --carnivores 70 --lid open
 ```
 
+- Custom run with longer day/night phases:
+
+```bash
+node src/simulate.js --ticks 300 --seed long-run --day-ticks 4 --night-ticks 4
+```
+
 - Record per-tick CSV + replay JSON:
 
 ```bash
@@ -321,6 +344,8 @@ node src/simulate.js --replay runs/my-seed.json --autoplay --fps 6
 - `--herbivores <number>`: initial herbivore count
 - `--carnivores <number>`: initial carnivore count
 - `--lid <open|closed>`: lid state
+- `--day-ticks <number>`: number of ticks per day phase (default `1`)
+- `--night-ticks <number>`: number of ticks per night phase (default `1`)
 - `--sweep`: run fixed 5-seed stability sweep
 - `--record-csv <path>`: write per-tick aggregate metrics CSV
 - `--record-json <path>`: write full replay JSON (terrain + entity positions per tick)
