@@ -217,67 +217,55 @@ Use this section as the source of truth if any diagram and prose disagree.
 **🔗 Diagram**: [Terrarium: Main Game Loop](sandbox/terrarium-main-game-loop.md)
 
 ---
----
 
-## **🎯 Next Steps for AI Agent**
+## **🧭 Mechanics Clarity (Quick Read)**
 
-### **Priority Tasks**
+Use this section as a fast guide to what is implemented now vs. what is design intent.
 
-1. **Implement Grid System**:
-   - Create a **250x250 grid** with terrain types (soil, water, sand, empty).
-   - Define **patches** (connected cells of the same type).
-   - Add **adjacency rules** (4-directional).
+### **Implementation Status (Prototype)**
 
-2. **Develop Entity Classes**:
-   - **Plants**: Growth stages, reproduction, death.
-   - **Herbivores**: Movement, eating, fleeing, reproduction.
-   - **Carnivores**: Movement, combat (AP system), chasing, reproduction.
+| System | Status | Notes |
+| --- | --- | --- |
+| Grid + terrain patches | Implemented | 2D world, terrain generation, per-cell resources in `src/world.js` |
+| Plants lifecycle | Implemented | Growth, reproduction, wilt/death, decay feedback |
+| Herbivore lifecycle | Implemented | Stage aging, movement, feeding, fleeing, breeding gates |
+| Carnivore lifecycle + AP combat | Implemented | Hunt/chase logic, AP spend/regen, opportunistic rival fights |
+| Resource cycles | Implemented | O2/CO2 pools, water weather/seepage, nutrient regen/decay |
+| Replay + diagnostics | Implemented | Tick timeline, event history, CSV + JSON replay output |
+| Player actions beyond lid config | Partial | Lid state is configurable at run start; interactive add-water/add-soil tools are not yet in CLI loop |
 
-3. **Resource Management**:
-   - **Global Pools**: O₂/CO₂.
-   - **Per-Cell Resources**: Water/nutrients.
-   - **Decay System**: Dead entities → nutrients.
+### **Per-Tick Execution Order (Source of Truth)**
 
-4. **Combat System**:
-   - Turn-based fights (carnivore vs. carnivore).
-   - Herbivore fleeing (20% escape chance).
-   - Chasing mechanics (1 chase per turn).
+| Order | Phase | Effect |
+| ---: | --- | --- |
+| 1 | Day/Night phase update | Applies light and metabolism multipliers |
+| 2 | Weather roll | Triggers rain/drought events |
+| 3 | Resource update | Applies evaporation, seepage, soil regen, gas flux |
+| 4 | Entity actions | Plants act first, then insects (move/eat/fight/reproduce) |
+| 5 | Decay pass | Dead entities convert into nutrients |
+| 6 | Outcome checks | Evaluates loss streaks and win condition |
 
-5. **Player Interaction**:
-   - Toggle lid (light/evaporation).
-   - Add water/soil (limited uses).
+### **Glossary**
 
----
+- **Step-charge**: Movement budget that recharges per tick and is spent per move (sand costs more).
+- **Local cap**: Reproduction block based on nearby same-species count in the 8-neighborhood.
+- **Global cap**: Reproduction block based on population ratio (herbivores vs plants, carnivores vs herbivores).
+- **Wilt state**: Plant stress state above hard-death threshold that can recover with sustained good conditions.
+- **Chase allowance**: Carnivore may perform at most one follow-up chase after a flee in the same tick.
 
-### **Testing Goals**
+### **Known Simplifications (Current Prototype)**
 
-- **Balance Check**:
-  - Ensure **O₂/CO₂** levels remain stable.
-  - Verify **water/nutrients** don’t deplete too quickly.
-  - Test **combat balance** (carnivores vs. herbivores).
-- **Edge Cases**:
-  - What happens if **all soil cells deplete nutrients**?
-  - How do **droughts** affect long-term survival?
-  - Can **carnivores overpopulate** and wipe out herbivores?
+- Gas dynamics include damping/centering behavior, so O2/CO2 stability is partly model-assisted and not purely emergent.
+- Console replay can render sampled previews by default for readability; native-size mode is optional.
+- Simulation focuses on ecosystem loop tuning first; rich direct player interaction is intentionally minimal at this stage.
 
----
+### **How To Read Outcomes Quickly**
 
-### **Deliverables**
-
-1. **Code Implementation**:
-   - Grid system (250x250).
-   - Entity classes (plants, herbivores, carnivores).
-   - Resource management (global/per-cell).
-   - Combat mechanics (AP, chasing).
-2. **Documentation**:
-   - Updated **Mermaid diagrams** (if rules change).
-   - **README** with setup/instructions.
-3. **Testing Report**:
-   - Logs of **ecosystem stability** over 100 ticks.
-   - **Balance adjustments** (e.g., AP regeneration rate).
+- A `WIN` at tick 100 means survival constraints held, not that biodiversity is balanced.
+- Use diagnostics to inspect births/deaths and predation totals before changing tuning values.
+- Use replay timeline and recent event history to map sudden population drops to weather/combat/resource events.
 
 ---
-
 ## **🧪 Prototype Simulator (Node.js)**
 
 The repository now includes an executable prototype simulator in `src/`.
@@ -489,9 +477,9 @@ These are the primary targets for the next tuning pass.
 
 ---
 
-### **💡 Notes for AI Agent**
+### **💡 Notes for Contributors**
 
-- **Start Small**: Implement **plants first**, then herbivores, then carnivores.
-- **Log Everything**: Track **resource levels, entity counts, and combat outcomes** for debugging.
-- **Tune as You Go**: Adjust **rates (growth, AP, energy)** based on testing.
-- **Ask for Clarification**: If any rule is ambiguous, refer to the **Mermaid diagrams** or ask for input.
+- **Change one system at a time**: Tune plants, herbivores, and carnivores in isolated passes to make regressions easier to spot.
+- **Record before/after runs**: Capture CSV and replay JSON when changing balance values so outcomes are comparable across seeds.
+- **Prefer config-based tuning**: Keep stable defaults in `src/config.js` and use CLI flags for short experiments.
+- **Keep docs in sync**: If rules change, update both this README and the related sandbox Mermaid diagram.
