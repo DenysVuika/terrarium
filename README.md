@@ -82,10 +82,10 @@
   - **20% chance to escape** carnivore attacks.
   - **Cost**: -1 energy, move 1 cell away (8-directional).
 - **Reproduction**:
-  - **Conditions**: Energy ≥ 14, cooldown 16, 14% chance, adjacent empty walkable cell.
+  - **Conditions**: Energy ≥ 14, cooldown 18, 12% chance, adjacent empty walkable cell.
   - **Crowding gates**:
-    - Local gate: reproduction blocked when nearby herbivore count in 8-neighborhood reaches 4.
-    - Global gate: reproduction blocked when live herbivores reach `plants * 0.012`.
+    - Local gate: reproduction blocked when nearby herbivore count in 8-neighborhood reaches 3.
+    - Global gate: reproduction blocked when live herbivores reach `plants * 0.0095`.
   - **Cost**: -6 energy.
 - **Longevity**:
   - **Max age**: 320 ticks.
@@ -125,10 +125,10 @@
   - **No-prey rest behavior**:
     - When no target herbivore is found, carnivore rests with 85% chance and recovers +0.3 energy.
 - **Reproduction**:
-  - **Conditions**: Energy ≥ 16, cooldown 16, 14% chance, adjacent empty walkable cell.
+  - **Conditions**: Energy ≥ 16, cooldown 16, 10% chance, adjacent empty walkable cell.
   - **Crowding gates**:
     - Local gate: reproduction blocked when nearby carnivore count in 8-neighborhood reaches 2.
-    - Global gate: reproduction blocked when live carnivores reach `herbivores * 0.45`.
+    - Global gate: reproduction blocked when live carnivores reach `herbivores * 0.3`.
   - **Cost**: -7 energy, AP = 0.
 - **Longevity**:
   - **Max age**: 180 ticks.
@@ -199,13 +199,13 @@ Use this section as the source of truth if any diagram and prose disagree.
 | --- | --- |
 | Adjacency model | Plants spread in 4-neighborhood; insect interactions use 8-neighborhood |
 | Movement model | Step-charge based; sand step-cost is 1.5 for both insect types |
-| Carnivore on sand | -0.7 energy move cost and -1 AP |
+| Carnivore on sand | -0.5 energy move cost and -1 AP |
 | Herbivore flee roll | 20% escape success; 80% attack resolves |
 | Carnivore turn economy | Max 1 attack action and 1 chase per tick |
 | Insect lifecycle | Herbivore egg/larva: 4/2 ticks; carnivore egg/larva: 2/1 ticks |
-| Herbivore breeding gate | Energy >= 14, cooldown 16, chance 14%, cost 6 |
-| Carnivore breeding gate | Energy >= 16, cooldown 16, chance 14%, cost 7 |
-| Reproduction crowding controls | Herbivore local cap 4 and global cap plants \* 0.012; carnivore local cap 2 and global cap herbivores \* 0.45 |
+| Herbivore breeding gate | Energy >= 14, cooldown 18, chance 12%, cost 6 |
+| Carnivore breeding gate | Energy >= 16, cooldown 16, chance 10%, cost 7 |
+| Reproduction crowding controls | Herbivore local cap 3 and global cap plants \* 0.0095; carnivore local cap 2 and global cap herbivores \* 0.3 |
 | Night metabolism | Insect passive metabolism is multiplied by 0.7 at night |
 | Starvation windows | Herbivore: 5 ticks at non-positive energy; carnivore: 8 ticks |
 | Lifespan contrast | Herbivores live much longer (max 320) than carnivores (max 180) |

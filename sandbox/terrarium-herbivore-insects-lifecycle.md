@@ -22,9 +22,9 @@ flowchart TD
     H12 -->|Yes with 80 percent chance| H13[Eat plant plus 5 energy plant removed]
     H12 -->|No| H14[No meal]
 
-    H13 --> H15{Reproduction gate energy ge 14 cooldown 0 chance 14 pct and local plus global cap checks}
+    H13 --> H15{Reproduction gate energy ge 14 cooldown 0 chance 12 pct and local plus global cap checks}
     H14 --> H15
-    H15 -->|Yes and spawn space available| H16[Lay egg energy minus 6 cooldown 16]
+    H15 -->|Yes and spawn space available| H16[Lay egg energy minus 6 cooldown 18]
     H15 -->|No| H17[No reproduction]
 
     H17 --> H18{Starvation ge 5 or age ge 320}

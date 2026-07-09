@@ -77,13 +77,13 @@ const DEFAULT_CONFIG = {
   // Herbivore energy spent on successful reproduction.
   herbivoreBreedEnergyCost: 6,
   // Herbivore reproduction cooldown duration in ticks.
-  herbivoreBreedCooldown: 16,
+  herbivoreBreedCooldown: 18,
   // Herbivore chance to reproduce when all gates are met.
-  herbivoreBreedChance: 0.14,
+  herbivoreBreedChance: 0.12,
   // Maximum number of nearby herbivores (radius gate) allowed for herbivore reproduction.
-  herbivoreBreedLocalCap: 4,
+  herbivoreBreedLocalCap: 3,
   // Soft global cap multiplier for herbivore population relative to plants.
-  herbivorePopulationCapPerPlant: 0.012,
+  herbivorePopulationCapPerPlant: 0.0095,
 
   // Minimum carnivore energy required to attempt reproduction.
   carnivoreBreedEnergyMin: 16,
@@ -93,11 +93,11 @@ const DEFAULT_CONFIG = {
   carnivoreBreedCooldown: 16,
   // Carnivore chance to reproduce when all gates are met.
   // Slightly reduced to curb late-game predator overgrowth.
-  carnivoreBreedChance: 0.14,
+  carnivoreBreedChance: 0.1,
   // Maximum number of nearby carnivores (radius gate) allowed for carnivore reproduction.
   carnivoreBreedLocalCap: 2,
   // Soft global cap multiplier for carnivore population relative to herbivores.
-  carnivorePopulationCapPerHerbivore: 0.45,
+  carnivorePopulationCapPerHerbivore: 0.3,
 
   // Herbivore passive metabolism per tick before day/night multiplier.
   herbivoreMetabolismPerTick: 0.1,

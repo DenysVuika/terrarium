@@ -44,7 +44,7 @@ flowchart TD
     C29 -->|Yes| C30[Gain +5 energy and +5 AP]
     C29 -->|No| C31[No kill bonus]
 
-    C30 --> C32{Reproduction gate energy ge 16 cooldown 0 chance 14 pct and local plus global cap checks}
+    C30 --> C32{Reproduction gate energy ge 16 cooldown 0 chance 10 pct and local plus global cap checks}
     C31 --> C32
     C28 --> C32
     C32 -->|Yes and spawn space available| C33[Lay egg: energy -7, cooldown 16, AP = 0]
