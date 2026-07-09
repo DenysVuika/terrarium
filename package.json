@@ -2,10 +2,17 @@
   "name": "terrarium",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "type": "module",
   "description": "Prototype ecosystem simulation for terrarium mechanics",
   "scripts": {
-    "simulate": "node src/simulate.js --record-csv runs/latest.csv --record-json runs/latest.json.gz",
-    "simulate:sweep": "node src/simulate.js --sweep",
-    "simulate:replay": "node src/simulate.js --replay latest"
+    "simulate": "node src/simulate.ts --record-csv runs/latest.csv --record-json runs/latest.json.gz",
+    "simulate:sweep": "node src/simulate.ts --sweep",
+    "simulate:replay": "node src/simulate.ts --replay latest",
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.2"
   }
 }

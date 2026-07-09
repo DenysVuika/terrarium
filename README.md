@@ -226,7 +226,7 @@ Use this section as a fast guide to what is implemented now vs. what is design i
 
 | System | Status | Notes |
 | --- | --- | --- |
-| Grid + terrain patches | Implemented | 2D world, terrain generation, per-cell resources in `src/world.js` |
+| Grid + terrain patches | Implemented | 2D world, terrain generation, per-cell resources in `src/world.ts` |
 | Plants lifecycle | Implemented | Growth, reproduction, wilt/death, decay feedback |
 | Herbivore lifecycle | Implemented | Stage aging, movement, feeding, fleeing, breeding gates |
 | Carnivore lifecycle + AP combat | Implemented | Hunt/chase logic, AP spend/regen, opportunistic rival fights |
@@ -291,19 +291,19 @@ npm run simulate:sweep
 - Custom run:
 
 ```bash
-node src/simulate.js --ticks 100 --seed my-seed --plants 1800 --herbivores 180 --carnivores 70 --lid open
+node src/simulate.ts --ticks 100 --seed my-seed --plants 1800 --herbivores 180 --carnivores 70 --lid open
 ```
 
 - Custom run with longer day/night phases:
 
 ```bash
-node src/simulate.js --ticks 300 --seed long-run --day-ticks 4 --night-ticks 4
+node src/simulate.ts --ticks 300 --seed long-run --day-ticks 4 --night-ticks 4
 ```
 
 - Record per-tick CSV + replay JSON:
 
 ```bash
-node src/simulate.js --ticks 100 --seed my-seed --record-csv runs/my-seed.csv --record-json runs/my-seed.json.gz
+node src/simulate.ts --ticks 100 --seed my-seed --record-csv runs/my-seed.csv --record-json runs/my-seed.json.gz
 ```
 
 - Replay latest run with keyboard navigation:
@@ -315,19 +315,19 @@ npm run simulate:replay
 - Replay a specific file:
 
 ```bash
-node src/simulate.js --replay runs/my-seed.json.gz
+node src/simulate.ts --replay runs/my-seed.json.gz
 ```
 
 - Replay with autoplay enabled on startup:
 
 ```bash
-node src/simulate.js --replay runs/my-seed.json.gz --autoplay --fps 6
+node src/simulate.ts --replay runs/my-seed.json.gz --autoplay --fps 6
 ```
 
 - Replay with native board dimensions (full 250x250 render):
 
 ```bash
-node src/simulate.js --replay latest --native-size
+node src/simulate.ts --replay latest --native-size
 ```
 
 ### **CLI Options**
@@ -360,11 +360,11 @@ node src/simulate.js --replay latest --native-size
 
 ### **Configuration**
 
-The simulator uses baseline defaults from `src/config.js` and then applies CLI overrides.
+The simulator uses baseline defaults from `src/config.ts` and then applies CLI overrides.
 
 - Override precedence:
-  1. `DEFAULT_CONFIG` in `src/config.js`
-  2. CLI flags passed to `node src/simulate.js ...`
+  1. `DEFAULT_CONFIG` in `src/config.ts`
+  2. CLI flags passed to `node src/simulate.ts ...`
 
 - Common tuning groups:
   - **World/Time**: `size`, `ticks`, `seed`, `lidOpen`, `dayTicks`, `nightTicks`
@@ -375,9 +375,9 @@ The simulator uses baseline defaults from `src/config.js` and then applies CLI o
   - **Global Balance**: gas flux scaling and midpoint pull
 
 - Practical workflow:
-  1. Keep `src/config.js` as the canonical baseline.
+  1. Keep `src/config.ts` as the canonical baseline.
   2. Use CLI flags for scenario experiments (`--ticks`, `--day-ticks`, `--night-ticks`, initial populations).
-  3. Promote stable scenario values back into `src/config.js` once validated.
+  3. Promote stable scenario values back into `src/config.ts` once validated.
 
 - Anti-overpopulation controls:
   - Herbivores: `herbivoreBreedChance`, `herbivoreBreedCooldown`, `herbivoreBreedLocalCap`, `herbivorePopulationCapPerPlant`
@@ -422,9 +422,9 @@ Replay symbol legend:
 ### **Implementation Notes**
 
 - Source files:
-  - `src/world.js`: grid generation, terrain patches, per-cell resources
-  - `src/simulator.js`: game loop, resources, entities, combat, win/lose checks
-  - `src/simulate.js`: CLI entry point, CSV/JSON recording, interactive replay
+  - `src/world.ts`: grid generation, terrain patches, per-cell resources
+  - `src/simulator.ts`: game loop, resources, entities, combat, win/lose checks
+  - `src/simulate.ts`: CLI entry point, CSV/JSON recording, interactive replay
 
 ### **Recording Format Guidance**
 
@@ -441,7 +441,7 @@ Replay symbol legend:
 
 ### **Single Baseline Run**
 
-- Command: `node src/simulate.js --ticks 100 --seed baseline-5`
+- Command: `node src/simulate.ts --ticks 100 --seed baseline-5`
 - Outcome: **WIN** (`survived 100 ticks`)
 - Final state: plants `1542`, herbivores `4`, carnivores `2`, O2 `55.48`, CO2 `47.28`
 
@@ -482,5 +482,5 @@ These are the primary targets for the next tuning pass.
 
 - **Change one system at a time**: Tune plants, herbivores, and carnivores in isolated passes to make regressions easier to spot.
 - **Record before/after runs**: Capture CSV and replay JSON when changing balance values so outcomes are comparable across seeds.
-- **Prefer config-based tuning**: Keep stable defaults in `src/config.js` and use CLI flags for short experiments.
+- **Prefer config-based tuning**: Keep stable defaults in `src/config.ts` and use CLI flags for short experiments.
 - **Keep docs in sync**: If rules change, update both this README and the related sandbox Mermaid diagram.

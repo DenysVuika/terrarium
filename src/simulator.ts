@@ -1,26 +1,133 @@
-'use strict';
+import type { SimulationConfig } from './config.ts';
+import { createRng, type Rng } from './rng.ts';
+import { TERRAIN, World } from './world.ts';
 
-const { World, TERRAIN } = require('./world');
-const { createRng } = require('./rng');
+type InsectKind = 'herbivore' | 'carnivore';
+type InsectStage = 'egg' | 'larva' | 'adult';
 
-function clamp(value, min, max) {
+interface Plant {
+  cell: number;
+  growth: number;
+  wilted: boolean;
+  recoverTicks: number;
+  stressTicks: number;
+}
+
+interface Insect {
+  id: string;
+  kind: InsectKind;
+  cell: number;
+  lastCell: number;
+  age: number;
+  stage: InsectStage;
+  stageTicks: number;
+  energy: number;
+  starvationTicks: number;
+  cooldown: number;
+  stepCharge: number;
+  alive: boolean;
+  ap: number;
+}
+
+interface TickStats {
+  herbivoreBirths: number;
+  carnivoreBirths: number;
+  herbivoreDeaths: number;
+  carnivoreDeaths: number;
+  herbivoreKillsByCarnivores: number;
+  carnivoreKillsByCarnivores: number;
+}
+
+export interface Snapshot {
+  tick: number;
+  day: boolean;
+  light: number;
+  o2: number;
+  co2: number;
+  plants: number;
+  herbivores: number;
+  carnivores: number;
+  eggs: number;
+  insects: number;
+  avgWater: number;
+  drinkableCells: number;
+}
+
+export interface ReplayFrame extends Omit<Snapshot, 'plants' | 'herbivores' | 'carnivores'> {
+  plants: number[];
+  herbivores: number[];
+  carnivores: number[];
+  insectEggs: number[];
+  events: string[];
+}
+
+export interface ReplayPayload {
+  version: number;
+  generatedAt: string;
+  size: number;
+  terrain: number[];
+  frames: ReplayFrame[];
+}
+
+export interface Outcome {
+  type: 'win' | 'lose';
+  reason: string;
+}
+
+interface RunOptions {
+  captureFrames?: boolean;
+}
+
+export interface SimulationResult {
+  config: SimulationConfig;
+  outcome: Outcome;
+  finalTick: number;
+  initialState: Snapshot;
+  finalState: Snapshot;
+  history: Snapshot[];
+  diagnostics: TickStats;
+  replay: ReplayPayload | null;
+}
+
+function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function stageFromGrowth(growth) {
+function stageFromGrowth(growth: number): 'seed' | 'sprout' | 'mature' {
   if (growth < 20) return 'seed';
   if (growth < 80) return 'sprout';
   return 'mature';
 }
 
-function nutrientDrainByGrowth(growth) {
+function nutrientDrainByGrowth(growth: number): number {
   if (growth < 20) return 0.2;
   if (growth < 80) return 0.5;
   return 1;
 }
 
 class Simulator {
-  constructor(config) {
+  config: SimulationConfig;
+  rng: Rng;
+  world: World;
+  tick: number;
+  day: boolean;
+  phaseTicksElapsed: number;
+  o2: number;
+  co2: number;
+  lowO2Ticks: number;
+  highCO2Ticks: number;
+  lowWaterTicks: number;
+  plants: Map<number, Plant>;
+  herbivores: Insect[];
+  carnivores: Insect[];
+  entityId: number;
+  history: Snapshot[];
+  outcome: Outcome | null;
+  currentTickEvents: string[];
+  tickStats: TickStats;
+  totalStats: TickStats;
+
+  constructor(config: SimulationConfig) {
     this.config = config;
     this.rng = createRng(config.seed);
     this.world = new World(config.size, this.rng);
@@ -36,7 +143,7 @@ class Simulator {
     this.highCO2Ticks = 0;
     this.lowWaterTicks = 0;
 
-    this.plants = new Map();
+    this.plants = new Map<number, Plant>();
     this.herbivores = [];
     this.carnivores = [];
     this.entityId = 0;
@@ -50,15 +157,15 @@ class Simulator {
     this.seedInitialPopulation();
   }
 
-  nextId(prefix) {
+  nextId(prefix: string): string {
     this.entityId += 1;
     return `${prefix}-${this.entityId}`;
   }
 
-  seedInitialPopulation() {
-    for (let i = 0; i < this.config.initialPlants; i += 1) {
+  seedInitialPopulation(): void {
+    for (let index = 0; index < this.config.initialPlants; index += 1) {
       const cell = this.world.randomCell(
-        (idx) => this.world.isSoil(idx) && !this.plants.has(idx),
+        (candidate) => this.world.isSoil(candidate) && !this.plants.has(candidate),
       );
       if (cell >= 0) {
         this.plants.set(cell, {
@@ -71,9 +178,9 @@ class Simulator {
       }
     }
 
-    for (let i = 0; i < this.config.initialHerbivores; i += 1) {
+    for (let index = 0; index < this.config.initialHerbivores; index += 1) {
       const cell = this.world.randomCell(
-        (idx) => this.world.isWalkable(idx) && !this.isOccupied(idx),
+        (candidate) => this.world.isWalkable(candidate) && !this.isOccupied(candidate),
       );
       if (cell >= 0) {
         this.herbivores.push(
@@ -82,9 +189,9 @@ class Simulator {
       }
     }
 
-    for (let i = 0; i < this.config.initialCarnivores; i += 1) {
+    for (let index = 0; index < this.config.initialCarnivores; index += 1) {
       const cell = this.world.randomCell(
-        (idx) => this.world.isWalkable(idx) && !this.isOccupied(idx),
+        (candidate) => this.world.isWalkable(candidate) && !this.isOccupied(candidate),
       );
       if (cell >= 0) {
         const carnivore = this.createInsect(
@@ -98,7 +205,7 @@ class Simulator {
     }
   }
 
-  createInsect(kind, cell, energy) {
+  createInsect(kind: InsectKind, cell: number, energy: number): Insect {
     return {
       id: this.nextId(kind[0]),
       kind,
@@ -116,31 +223,29 @@ class Simulator {
     };
   }
 
-  isOccupied(cell) {
-    for (let i = 0; i < this.herbivores.length; i += 1) {
-      if (this.herbivores[i].alive && this.herbivores[i].cell === cell) {
+  isOccupied(cell: number): boolean {
+    for (let index = 0; index < this.herbivores.length; index += 1) {
+      if (this.herbivores[index].alive && this.herbivores[index].cell === cell) {
         return true;
       }
     }
-    for (let i = 0; i < this.carnivores.length; i += 1) {
-      if (this.carnivores[i].alive && this.carnivores[i].cell === cell) {
+    for (let index = 0; index < this.carnivores.length; index += 1) {
+      if (this.carnivores[index].alive && this.carnivores[index].cell === cell) {
         return true;
       }
     }
     return false;
   }
 
-  run(options = {}) {
+  run(options: RunOptions = {}): SimulationResult {
     const captureFrames = Boolean(options.captureFrames);
     const initialState = this.snapshot();
     const frames = captureFrames ? [this.buildReplayFrame(initialState)] : null;
 
     while (!this.outcome && this.tick < this.config.ticks) {
       this.step();
-      if (captureFrames) {
-        frames.push(
-          this.buildReplayFrame(this.history[this.history.length - 1]),
-        );
+      if (captureFrames && frames) {
+        frames.push(this.buildReplayFrame(this.history[this.history.length - 1]));
       }
     }
 
@@ -153,7 +258,7 @@ class Simulator {
 
     return {
       config: this.config,
-      outcome: this.outcome,
+      outcome: this.outcome!,
       finalTick: this.tick,
       initialState,
       finalState: this.snapshot(),
@@ -166,7 +271,7 @@ class Simulator {
         herbivoreKillsByCarnivores: this.totalStats.herbivoreKillsByCarnivores,
         carnivoreKillsByCarnivores: this.totalStats.carnivoreKillsByCarnivores,
       },
-      replay: captureFrames
+      replay: captureFrames && frames
         ? {
             version: 1,
             generatedAt: new Date().toISOString(),
@@ -178,14 +283,14 @@ class Simulator {
     };
   }
 
-  buildReplayFrame(snapshot) {
-    const herbivores = [];
-    const carnivores = [];
-    const insectEggs = [];
+  buildReplayFrame(snapshot: Snapshot): ReplayFrame {
+    const herbivores: number[] = [];
+    const carnivores: number[] = [];
+    const insectEggs: number[] = [];
 
-    for (let i = 0; i < this.herbivores.length; i += 1) {
-      if (this.herbivores[i].alive) {
-        const herbivore = this.herbivores[i];
+    for (let index = 0; index < this.herbivores.length; index += 1) {
+      if (this.herbivores[index].alive) {
+        const herbivore = this.herbivores[index];
         herbivores.push(herbivore.cell);
         if (herbivore.stage === 'egg') {
           insectEggs.push(herbivore.cell);
@@ -193,9 +298,9 @@ class Simulator {
       }
     }
 
-    for (let i = 0; i < this.carnivores.length; i += 1) {
-      if (this.carnivores[i].alive) {
-        const carnivore = this.carnivores[i];
+    for (let index = 0; index < this.carnivores.length; index += 1) {
+      if (this.carnivores[index].alive) {
+        const carnivore = this.carnivores[index];
         carnivores.push(carnivore.cell);
         if (carnivore.stage === 'egg') {
           insectEggs.push(carnivore.cell);
@@ -213,13 +318,13 @@ class Simulator {
     };
   }
 
-  addEvent(message) {
+  addEvent(message: string): void {
     if (this.currentTickEvents.length < 20) {
       this.currentTickEvents.push(message);
     }
   }
 
-  createTickStats() {
+  createTickStats(): TickStats {
     return {
       herbivoreBirths: 0,
       carnivoreBirths: 0,
@@ -230,11 +335,11 @@ class Simulator {
     };
   }
 
-  getCurrentLight() {
+  getCurrentLight(): number {
     return this.day ? (this.config.lidOpen ? 100 : 50) : 0;
   }
 
-  advanceDayNightPhase() {
+  advanceDayNightPhase(): void {
     const phaseLength = this.day
       ? this.config.dayTicks
       : this.config.nightTicks;
@@ -247,7 +352,7 @@ class Simulator {
     }
   }
 
-  step() {
+  step(): void {
     this.tick += 1;
     this.currentTickEvents = [];
     this.tickStats = this.createTickStats();
@@ -266,20 +371,20 @@ class Simulator {
     this.advanceDayNightPhase();
   }
 
-  snapshot() {
+  snapshot(): Snapshot {
     const plantCount = this.plants.size;
-    const herbivoreCount = this.herbivores.filter((h) => h.alive).length;
-    const carnivoreCount = this.carnivores.filter((c) => c.alive).length;
+    const herbivoreCount = this.herbivores.filter((herbivore) => herbivore.alive).length;
+    const carnivoreCount = this.carnivores.filter((carnivore) => carnivore.alive).length;
     const eggCount =
-      this.herbivores.filter((h) => h.alive && h.stage === 'egg').length +
-      this.carnivores.filter((c) => c.alive && c.stage === 'egg').length;
+      this.herbivores.filter((herbivore) => herbivore.alive && herbivore.stage === 'egg').length +
+      this.carnivores.filter((carnivore) => carnivore.alive && carnivore.stage === 'egg').length;
 
     let totalWater = 0;
     let drinkableCells = 0;
-    for (let i = 0; i < this.world.length; i += 1) {
-      const w = this.world.water[i];
-      totalWater += w;
-      if (w > 1) {
+    for (let index = 0; index < this.world.length; index += 1) {
+      const water = this.world.water[index];
+      totalWater += water;
+      if (water > 1) {
         drinkableCells += 1;
       }
     }
@@ -300,42 +405,42 @@ class Simulator {
     };
   }
 
-  processWeatherAndCellResources() {
+  processWeatherAndCellResources(): void {
     let rainEvents = 0;
     let droughtEvents = 0;
 
-    for (let i = 0; i < this.world.length; i += 1) {
+    for (let index = 0; index < this.world.length; index += 1) {
       if (this.rng.chance(this.config.rainChance)) {
-        this.world.water[i] += this.config.rainAmount;
+        this.world.water[index] += this.config.rainAmount;
         rainEvents += 1;
       }
       if (this.rng.chance(this.config.droughtChance)) {
-        this.world.water[i] -= this.config.droughtAmount;
+        this.world.water[index] -= this.config.droughtAmount;
         droughtEvents += 1;
       }
 
       if (this.config.lidOpen) {
-        this.world.water[i] -= this.config.evaporationOpen;
+        this.world.water[index] -= this.config.evaporationOpen;
       }
 
-      if (this.world.terrain[i] === TERRAIN.WATER) {
-        this.world.water[i] += this.config.moistureSeepageFromWater;
+      if (this.world.terrain[index] === TERRAIN.WATER) {
+        this.world.water[index] += this.config.moistureSeepageFromWater;
       } else {
         const waterNeighbors = this.world
-          .neighbors4(i)
-          .filter((n) => this.world.terrain[n] === TERRAIN.WATER).length;
+          .neighbors4(index)
+          .filter((neighbor) => this.world.terrain[neighbor] === TERRAIN.WATER).length;
         if (waterNeighbors > 0) {
-          this.world.water[i] +=
+          this.world.water[index] +=
             waterNeighbors * this.config.moistureSeepageFromAdjacentWater;
         }
       }
 
-      if (this.world.terrain[i] === TERRAIN.SOIL) {
-        this.world.nutrients[i] += 0.1;
+      if (this.world.terrain[index] === TERRAIN.SOIL) {
+        this.world.nutrients[index] += 0.1;
       }
 
-      this.world.water[i] = clamp(this.world.water[i], 0, 100);
-      this.world.nutrients[i] = clamp(this.world.nutrients[i], 0, 300);
+      this.world.water[index] = clamp(this.world.water[index], 0, 100);
+      this.world.nutrients[index] = clamp(this.world.nutrients[index], 0, 300);
     }
 
     if (rainEvents > 0) {
@@ -346,13 +451,12 @@ class Simulator {
     }
   }
 
-  updateGlobalGases(light) {
+  updateGlobalGases(light: number): void {
     const plantCount = this.plants.size;
     const insects =
-      this.herbivores.filter((h) => h.alive).length +
-      this.carnivores.filter((c) => c.alive).length;
+      this.herbivores.filter((herbivore) => herbivore.alive).length +
+      this.carnivores.filter((carnivore) => carnivore.alive).length;
 
-    // Plants only perform meaningful gas exchange when light is available.
     const photosynthesisFactor = light >= 50 ? light / 100 : 0;
     const scaledPlantFlux = 2 * (plantCount / 10) * photosynthesisFactor;
     const scaledInsectFlux = 1 * (insects / 10);
@@ -369,18 +473,14 @@ class Simulator {
     this.co2 = clamp(this.co2, 0, 100);
   }
 
-  processPlants(light) {
-    const toRemove = [];
-    const toAdd = [];
+  processPlants(light: number): void {
+    const toRemove: number[] = [];
+    const toAdd: Plant[] = [];
     const co2Penalty = this.co2 > 90 ? 0.5 : 1;
 
     for (const [cell, plant] of this.plants.entries()) {
       const drain = nutrientDrainByGrowth(plant.growth);
-      this.world.nutrients[cell] = clamp(
-        this.world.nutrients[cell] - drain,
-        0,
-        300,
-      );
+      this.world.nutrients[cell] = clamp(this.world.nutrients[cell] - drain, 0, 300);
 
       const hasResources =
         this.world.water[cell] > 30 && this.world.nutrients[cell] > 20;
@@ -396,12 +496,7 @@ class Simulator {
           }
         }
       } else if (light === 0 && hasResources) {
-        // Darkness with healthy resources is dormancy, not full stress.
-        plant.growth = clamp(
-          plant.growth - this.config.plantNightShrink,
-          0,
-          100,
-        );
+        plant.growth = clamp(plant.growth - this.config.plantNightShrink, 0, 100);
         plant.recoverTicks = 0;
       } else {
         if (plant.growth < 10) {
@@ -409,11 +504,7 @@ class Simulator {
           continue;
         }
 
-        plant.growth = clamp(
-          plant.growth - this.config.plantStressShrink,
-          0,
-          100,
-        );
+        plant.growth = clamp(plant.growth - this.config.plantStressShrink, 0, 100);
         plant.wilted = true;
         plant.recoverTicks = 0;
       }
@@ -425,34 +516,28 @@ class Simulator {
       ) {
         const options = this.world
           .neighbors4(cell)
-          .filter((n) => this.world.isSoil(n) && !this.plants.has(n));
+          .filter((neighbor) => this.world.isSoil(neighbor) && !this.plants.has(neighbor));
 
         if (options.length > 0) {
           const target = this.rng.pick(options);
-          this.world.nutrients[cell] = clamp(
-            this.world.nutrients[cell] - 10,
-            0,
-            300,
-          );
-          toAdd.push({
-            cell: target,
-            growth: 0,
-            wilted: false,
-            recoverTicks: 0,
-            stressTicks: 0,
-          });
+          if (target !== null) {
+            this.world.nutrients[cell] = clamp(this.world.nutrients[cell] - 10, 0, 300);
+            toAdd.push({
+              cell: target,
+              growth: 0,
+              wilted: false,
+              recoverTicks: 0,
+              stressTicks: 0,
+            });
+          }
         }
       }
     }
 
-    for (let i = 0; i < toRemove.length; i += 1) {
-      const cell = toRemove[i];
+    for (let index = 0; index < toRemove.length; index += 1) {
+      const cell = toRemove[index];
       this.plants.delete(cell);
-      this.world.nutrients[cell] = clamp(
-        this.world.nutrients[cell] + 50,
-        0,
-        300,
-      );
+      this.world.nutrients[cell] = clamp(this.world.nutrients[cell] + 50, 0, 300);
     }
 
     if (toAdd.length > 0) {
@@ -462,32 +547,32 @@ class Simulator {
       this.addEvent(`plants: died=${toRemove.length}`);
     }
 
-    for (let i = 0; i < toAdd.length; i += 1) {
-      if (!this.plants.has(toAdd[i].cell)) {
-        this.plants.set(toAdd[i].cell, toAdd[i]);
+    for (let index = 0; index < toAdd.length; index += 1) {
+      if (!this.plants.has(toAdd[index].cell)) {
+        this.plants.set(toAdd[index].cell, toAdd[index]);
       }
     }
   }
 
-  processInsects() {
-    const occupied = new Set();
-    for (let i = 0; i < this.herbivores.length; i += 1) {
-      if (this.herbivores[i].alive) occupied.add(this.herbivores[i].cell);
+  processInsects(): void {
+    const occupied = new Set<number>();
+    for (let index = 0; index < this.herbivores.length; index += 1) {
+      if (this.herbivores[index].alive) occupied.add(this.herbivores[index].cell);
     }
-    for (let i = 0; i < this.carnivores.length; i += 1) {
-      if (this.carnivores[i].alive) occupied.add(this.carnivores[i].cell);
+    for (let index = 0; index < this.carnivores.length; index += 1) {
+      if (this.carnivores[index].alive) occupied.add(this.carnivores[index].cell);
     }
 
-    for (let i = 0; i < this.herbivores.length; i += 1) {
-      const herbivore = this.herbivores[i];
+    for (let index = 0; index < this.herbivores.length; index += 1) {
+      const herbivore = this.herbivores[index];
       if (!herbivore.alive) continue;
       this.updateInsectLifecycle(herbivore, occupied, false);
       if (!herbivore.alive || herbivore.stage !== 'adult') continue;
       this.runHerbivoreTurn(herbivore, occupied);
     }
 
-    for (let i = 0; i < this.carnivores.length; i += 1) {
-      const carnivore = this.carnivores[i];
+    for (let index = 0; index < this.carnivores.length; index += 1) {
+      const carnivore = this.carnivores[index];
       if (!carnivore.alive) continue;
       this.updateInsectLifecycle(carnivore, occupied, true);
       if (!carnivore.alive || carnivore.stage !== 'adult') continue;
@@ -527,15 +612,17 @@ class Simulator {
       this.tickStats.carnivoreKillsByCarnivores;
   }
 
-  updateInsectLifecycle(entity, occupied, isCarnivore) {
+  updateInsectLifecycle(
+    entity: Insect,
+    occupied: Set<number>,
+    isCarnivore: boolean,
+  ): void {
     entity.age += 1;
     entity.stageTicks += 1;
     const baseMetabolism = isCarnivore
       ? this.config.carnivoreMetabolismPerTick
       : this.config.herbivoreMetabolismPerTick;
-    const metabolismMultiplier = this.day
-      ? 1
-      : this.config.nightMetabolismMultiplier;
+    const metabolismMultiplier = this.day ? 1 : this.config.nightMetabolismMultiplier;
     entity.energy -= baseMetabolism * metabolismMultiplier;
 
     if (this.o2 < 10) {
@@ -566,28 +653,27 @@ class Simulator {
     if (entity.stage === 'egg' && entity.stageTicks >= eggStageTicks) {
       entity.stage = 'larva';
       entity.stageTicks = 0;
-    } else if (
-      entity.stage === 'larva' &&
-      entity.stageTicks >= larvaStageTicks
-    ) {
+    } else if (entity.stage === 'larva' && entity.stageTicks >= larvaStageTicks) {
       entity.stage = 'adult';
       entity.stageTicks = 0;
     }
 
     const hasNearbyWater = this.world
       .neighbors8(entity.cell)
-      .some((n) => this.world.water[n] >= this.config.insectDrinkAmount);
+      .some((neighbor) => this.world.water[neighbor] >= this.config.insectDrinkAmount);
 
     if (hasNearbyWater) {
       const waterSources = this.world
         .neighbors8(entity.cell)
-        .filter((n) => this.world.water[n] >= this.config.insectDrinkAmount);
+        .filter((neighbor) => this.world.water[neighbor] >= this.config.insectDrinkAmount);
       const drinkCell = this.rng.pick(waterSources);
-      this.world.water[drinkCell] = clamp(
-        this.world.water[drinkCell] - this.config.insectDrinkAmount,
-        0,
-        100,
-      );
+      if (drinkCell !== null) {
+        this.world.water[drinkCell] = clamp(
+          this.world.water[drinkCell] - this.config.insectDrinkAmount,
+          0,
+          100,
+        );
+      }
     } else {
       entity.energy -= isCarnivore
         ? this.config.carnivoreDehydrationPenalty
@@ -623,7 +709,7 @@ class Simulator {
     }
   }
 
-  runHerbivoreTurn(herbivore, occupied) {
+  runHerbivoreTurn(herbivore: Insect, occupied: Set<number>): void {
     const targetPlant = this.findNearestPlant(herbivore.cell, 2);
     if (targetPlant >= 0) {
       this.moveToward(herbivore, targetPlant, occupied, false);
@@ -633,26 +719,26 @@ class Simulator {
 
     const consumablePlants = [herbivore.cell]
       .concat(this.world.neighbors8(herbivore.cell))
-      .filter((n, index, arr) => arr.indexOf(n) === index)
-      .filter((n) => this.plants.has(n));
+      .filter((cell, index, cells) => cells.indexOf(cell) === index)
+      .filter((cell) => this.plants.has(cell));
 
     if (consumablePlants.length > 0 && this.rng.chance(0.8)) {
       const plantCell = this.rng.pick(consumablePlants);
-      this.plants.delete(plantCell);
-      this.world.nutrients[plantCell] = clamp(
-        this.world.nutrients[plantCell] + 50,
-        0,
-        300,
-      );
-      herbivore.energy += 5;
+      if (plantCell !== null) {
+        this.plants.delete(plantCell);
+        this.world.nutrients[plantCell] = clamp(this.world.nutrients[plantCell] + 50, 0, 300);
+        herbivore.energy += 5;
+      }
     }
 
     const localHerbivores = this.world
       .neighbors8(herbivore.cell)
-      .filter((n) =>
-        this.herbivores.some((h) => h.alive && h.cell === n && h.id !== herbivore.id),
+      .filter((cell) =>
+        this.herbivores.some(
+          (other) => other.alive && other.cell === cell && other.id !== herbivore.id,
+        ),
       ).length;
-    const liveHerbivores = this.herbivores.filter((h) => h.alive).length;
+    const liveHerbivores = this.herbivores.filter((entity) => entity.alive).length;
     const herbivoreGlobalCap = Math.max(
       1,
       Math.floor(this.plants.size * this.config.herbivorePopulationCapPerPlant),
@@ -677,12 +763,13 @@ class Simulator {
     }
   }
 
-  runCarnivoreTurn(carnivore, occupied) {
+  runCarnivoreTurn(carnivore: Insect, occupied: Set<number>): void {
     let attackUsed = false;
     let chaseUsed = false;
 
     const adjacentHerbivores = this.herbivores.filter(
-      (h) => h.alive && this.world.neighbors8(carnivore.cell).includes(h.cell),
+      (herbivore) =>
+        herbivore.alive && this.world.neighbors8(carnivore.cell).includes(herbivore.cell),
     );
 
     if (adjacentHerbivores.length > 0 && carnivore.ap >= 3 && !attackUsed) {
@@ -690,23 +777,19 @@ class Simulator {
       carnivore.ap -= 3;
       const prey = this.rng.pick(adjacentHerbivores);
 
-      if (this.rng.chance(this.config.carnivorePreyFleeChance)) {
+      if (prey && this.rng.chance(this.config.carnivorePreyFleeChance)) {
         prey.energy -= 1;
         this.fleeFrom(prey, carnivore.cell, occupied);
         if (!chaseUsed) {
           chaseUsed = true;
           this.moveToward(carnivore, prey.cell, occupied, true);
         }
-      } else {
+      } else if (prey) {
         prey.energy -= this.config.carnivoreAttackDamage;
         if (prey.energy <= 0) {
           prey.alive = false;
           occupied.delete(prey.cell);
-          this.world.nutrients[prey.cell] = clamp(
-            this.world.nutrients[prey.cell] + 20,
-            0,
-            300,
-          );
+          this.world.nutrients[prey.cell] = clamp(this.world.nutrients[prey.cell] + 20, 0, 300);
           carnivore.energy += this.config.carnivoreKillEnergyGain;
           carnivore.ap = clamp(carnivore.ap + 5, 0, 10);
           this.tickStats.herbivoreDeaths += 1;
@@ -723,20 +806,18 @@ class Simulator {
       );
       if (targetHerbivore) {
         this.moveToward(carnivore, targetHerbivore.cell, occupied, true);
+      } else if (this.rng.chance(this.config.carnivoreRestChanceNoPrey)) {
+        carnivore.energy += this.config.carnivoreRestEnergyRecovery;
       } else {
-        if (this.rng.chance(this.config.carnivoreRestChanceNoPrey)) {
-          carnivore.energy += this.config.carnivoreRestEnergyRecovery;
-        } else {
-          this.moveRandom(carnivore, occupied, true);
-        }
+        this.moveRandom(carnivore, occupied, true);
       }
     }
 
     const adjacentCarnivores = this.carnivores.filter(
-      (c) =>
-        c.alive &&
-        c.id !== carnivore.id &&
-        this.world.neighbors8(carnivore.cell).includes(c.cell),
+      (other) =>
+        other.alive &&
+        other.id !== carnivore.id &&
+        this.world.neighbors8(carnivore.cell).includes(other.cell),
     );
 
     if (
@@ -748,40 +829,38 @@ class Simulator {
     ) {
       attackUsed = true;
       const rival = this.rng.pick(adjacentCarnivores);
-      carnivore.ap -= 3;
-      if (rival.ap >= 3) {
-        rival.ap -= 3;
-      }
-      carnivore.energy -= 2;
-      rival.energy -= 2;
-      if (rival.energy <= 0) {
-        rival.alive = false;
-        rival.ap = 0;
-        occupied.delete(rival.cell);
-        this.world.nutrients[rival.cell] = clamp(
-          this.world.nutrients[rival.cell] + 20,
-          0,
-          300,
-        );
-        carnivore.energy += 5;
-        carnivore.ap = clamp(carnivore.ap + 5, 0, 10);
-        this.tickStats.carnivoreDeaths += 1;
-        this.tickStats.carnivoreKillsByCarnivores += 1;
+      if (rival) {
+        carnivore.ap -= 3;
+        if (rival.ap >= 3) {
+          rival.ap -= 3;
+        }
+        carnivore.energy -= 2;
+        rival.energy -= 2;
+        if (rival.energy <= 0) {
+          rival.alive = false;
+          rival.ap = 0;
+          occupied.delete(rival.cell);
+          this.world.nutrients[rival.cell] = clamp(this.world.nutrients[rival.cell] + 20, 0, 300);
+          carnivore.energy += 5;
+          carnivore.ap = clamp(carnivore.ap + 5, 0, 10);
+          this.tickStats.carnivoreDeaths += 1;
+          this.tickStats.carnivoreKillsByCarnivores += 1;
+        }
       }
     }
 
     const localCarnivores = this.world
       .neighbors8(carnivore.cell)
-      .filter((n) =>
-        this.carnivores.some((c) => c.alive && c.cell === n && c.id !== carnivore.id),
+      .filter((cell) =>
+        this.carnivores.some(
+          (other) => other.alive && other.cell === cell && other.id !== carnivore.id,
+        ),
       ).length;
-    const liveCarnivores = this.carnivores.filter((c) => c.alive).length;
-    const liveHerbivores = this.herbivores.filter((h) => h.alive).length;
+    const liveCarnivores = this.carnivores.filter((entity) => entity.alive).length;
+    const liveHerbivores = this.herbivores.filter((entity) => entity.alive).length;
     const carnivoreGlobalCap = Math.max(
       1,
-      Math.floor(
-        liveHerbivores * this.config.carnivorePopulationCapPerHerbivore,
-      ),
+      Math.floor(liveHerbivores * this.config.carnivorePopulationCapPerHerbivore),
     );
 
     if (
@@ -804,14 +883,14 @@ class Simulator {
     }
   }
 
-  findNearestPlant(originCell, radius) {
+  findNearestPlant(originCell: number, radius: number): number {
     const origin = this.world.coords(originCell);
     let nearest = -1;
     let bestDistance = Number.POSITIVE_INFINITY;
 
     for (const cell of this.plants.keys()) {
-      const pos = this.world.coords(cell);
-      const distance = Math.abs(pos.x - origin.x) + Math.abs(pos.y - origin.y);
+      const position = this.world.coords(cell);
+      const distance = Math.abs(position.x - origin.x) + Math.abs(position.y - origin.y);
       if (distance <= radius && distance < bestDistance) {
         bestDistance = distance;
         nearest = cell;
@@ -821,16 +900,16 @@ class Simulator {
     return nearest;
   }
 
-  findNearestEntity(originCell, list, radius) {
+  findNearestEntity(originCell: number, list: Insect[], radius: number): Insect | null {
     const origin = this.world.coords(originCell);
-    let nearest = null;
+    let nearest: Insect | null = null;
     let bestDistance = Number.POSITIVE_INFINITY;
 
-    for (let i = 0; i < list.length; i += 1) {
-      const entity = list[i];
+    for (let index = 0; index < list.length; index += 1) {
+      const entity = list[index];
       if (!entity.alive) continue;
-      const pos = this.world.coords(entity.cell);
-      const distance = Math.abs(pos.x - origin.x) + Math.abs(pos.y - origin.y);
+      const position = this.world.coords(entity.cell);
+      const distance = Math.abs(position.x - origin.x) + Math.abs(position.y - origin.y);
       if (distance <= radius && distance < bestDistance) {
         bestDistance = distance;
         nearest = entity;
@@ -840,33 +919,38 @@ class Simulator {
     return nearest;
   }
 
-  moveToward(entity, targetCell, occupied, isCarnivore) {
+  moveToward(
+    entity: Insect,
+    targetCell: number,
+    occupied: Set<number>,
+    isCarnivore: boolean,
+  ): boolean {
     const target = this.world.coords(targetCell);
 
     const options = this.world
       .neighbors8(entity.cell)
-      .filter((n) => this.world.isWalkable(n) && !occupied.has(n));
+      .filter((cell) => this.world.isWalkable(cell) && !occupied.has(cell));
 
     if (!options.length) {
       return false;
     }
 
-    options.sort((a, b) => {
-      const pa = this.world.coords(a);
-      const pb = this.world.coords(b);
-      let da = Math.abs(pa.x - target.x) + Math.abs(pa.y - target.y);
-      let db = Math.abs(pb.x - target.x) + Math.abs(pb.y - target.y);
+    options.sort((left, right) => {
+      const leftPosition = this.world.coords(left);
+      const rightPosition = this.world.coords(right);
+      let leftDistance = Math.abs(leftPosition.x - target.x) + Math.abs(leftPosition.y - target.y);
+      let rightDistance = Math.abs(rightPosition.x - target.x) + Math.abs(rightPosition.y - target.y);
 
-      if (entity.lastCell >= 0 && a === entity.lastCell) {
-        da += 0.35;
+      if (entity.lastCell >= 0 && left === entity.lastCell) {
+        leftDistance += 0.35;
       }
-      if (entity.lastCell >= 0 && b === entity.lastCell) {
-        db += 0.35;
+      if (entity.lastCell >= 0 && right === entity.lastCell) {
+        rightDistance += 0.35;
       }
 
-      da += this.rng.next() * 0.05;
-      db += this.rng.next() * 0.05;
-      return da - db;
+      leftDistance += this.rng.next() * 0.05;
+      rightDistance += this.rng.next() * 0.05;
+      return leftDistance - rightDistance;
     });
 
     const chosen = options[0];
@@ -877,10 +961,10 @@ class Simulator {
     return this.tryMove(entity, chosen, occupied, isCarnivore);
   }
 
-  moveRandom(entity, occupied, isCarnivore) {
+  moveRandom(entity: Insect, occupied: Set<number>, isCarnivore: boolean): boolean {
     const options = this.world
       .neighbors8(entity.cell)
-      .filter((n) => this.world.isWalkable(n) && !occupied.has(n));
+      .filter((cell) => this.world.isWalkable(cell) && !occupied.has(cell));
 
     if (!options.length) {
       return false;
@@ -889,8 +973,8 @@ class Simulator {
     let bestScore = Number.NEGATIVE_INFINITY;
     let bestCell = options[0];
 
-    for (let i = 0; i < options.length; i += 1) {
-      const option = options[i];
+    for (let index = 0; index < options.length; index += 1) {
+      const option = options[index];
       let score = this.rng.next();
 
       score += this.world.water[option] * 0.02;
@@ -902,7 +986,7 @@ class Simulator {
       if (!isCarnivore) {
         const nearbyPlants = this.world
           .neighbors8(option)
-          .filter((n) => this.plants.has(n)).length;
+          .filter((cell) => this.plants.has(cell)).length;
         score += nearbyPlants * 0.7;
       }
 
@@ -915,7 +999,12 @@ class Simulator {
     return this.tryMove(entity, bestCell, occupied, isCarnivore);
   }
 
-  tryMove(entity, targetCell, occupied, isCarnivore) {
+  tryMove(
+    entity: Insect,
+    targetCell: number,
+    occupied: Set<number>,
+    isCarnivore: boolean,
+  ): boolean {
     const terrain = this.world.terrain[targetCell];
     const stepCost = terrain === TERRAIN.SAND ? this.config.sandStepCost : 1;
 
@@ -941,29 +1030,29 @@ class Simulator {
     return true;
   }
 
-  fleeFrom(prey, predatorCell, occupied) {
+  fleeFrom(prey: Insect, predatorCell: number, occupied: Set<number>): void {
     const predator = this.world.coords(predatorCell);
     const options = this.world
       .neighbors8(prey.cell)
-      .filter((n) => this.world.isWalkable(n) && !occupied.has(n));
+      .filter((cell) => this.world.isWalkable(cell) && !occupied.has(cell));
 
     if (!options.length) {
       return;
     }
 
-    options.sort((a, b) => {
-      const pa = this.world.coords(a);
-      const pb = this.world.coords(b);
-      let da = Math.abs(pa.x - predator.x) + Math.abs(pa.y - predator.y);
-      let db = Math.abs(pb.x - predator.x) + Math.abs(pb.y - predator.y);
+    options.sort((left, right) => {
+      const leftPosition = this.world.coords(left);
+      const rightPosition = this.world.coords(right);
+      let leftDistance = Math.abs(leftPosition.x - predator.x) + Math.abs(leftPosition.y - predator.y);
+      let rightDistance = Math.abs(rightPosition.x - predator.x) + Math.abs(rightPosition.y - predator.y);
 
-      if (prey.lastCell >= 0 && a === prey.lastCell) {
-        da -= 0.35;
+      if (prey.lastCell >= 0 && left === prey.lastCell) {
+        leftDistance -= 0.35;
       }
-      if (prey.lastCell >= 0 && b === prey.lastCell) {
-        db -= 0.35;
+      if (prey.lastCell >= 0 && right === prey.lastCell) {
+        rightDistance -= 0.35;
       }
-      return db - da;
+      return rightDistance - leftDistance;
     });
 
     const previousCell = prey.cell;
@@ -973,27 +1062,28 @@ class Simulator {
     occupied.add(prey.cell);
   }
 
-  findSpawnCell(parentCell, occupied) {
+  findSpawnCell(parentCell: number, occupied: Set<number>): number {
     const options = this.world
       .neighbors8(parentCell)
-      .filter((n) => this.world.isWalkable(n) && !occupied.has(n));
-    return options.length ? this.rng.pick(options) : -1;
+      .filter((cell) => this.world.isWalkable(cell) && !occupied.has(cell));
+    const pick = options.length ? this.rng.pick(options) : null;
+    return pick ?? -1;
   }
 
-  cleanupDead() {
-    this.herbivores = this.herbivores.filter((h) => h.alive);
-    this.carnivores = this.carnivores.filter((c) => c.alive);
+  cleanupDead(): void {
+    this.herbivores = this.herbivores.filter((entity) => entity.alive);
+    this.carnivores = this.carnivores.filter((entity) => entity.alive);
   }
 
-  evaluateOutcome() {
+  evaluateOutcome(): void {
     const livePlants = this.plants.size;
-    const liveHerbivores = this.herbivores.filter((h) => h.alive).length;
-    const liveCarnivores = this.carnivores.filter((c) => c.alive).length;
+    const liveHerbivores = this.herbivores.filter((entity) => entity.alive).length;
+    const liveCarnivores = this.carnivores.filter((entity) => entity.alive).length;
     const insects = liveHerbivores + liveCarnivores;
 
     let hasDrinkable = false;
-    for (let i = 0; i < this.world.length; i += 1) {
-      if (this.world.water[i] > 1) {
+    for (let index = 0; index < this.world.length; index += 1) {
+      if (this.world.water[index] > 1) {
         hasDrinkable = true;
         break;
       }
@@ -1039,11 +1129,10 @@ class Simulator {
   }
 }
 
-function runSimulation(config, options = {}) {
+export function runSimulation(
+  config: SimulationConfig,
+  options: RunOptions = {},
+): SimulationResult {
   const simulator = new Simulator(config);
   return simulator.run(options);
 }
-
-module.exports = {
-  runSimulation,
-};

@@ -1,6 +1,4 @@
-'use strict';
-
-const DEFAULT_CONFIG = {
+export const DEFAULT_CONFIG = {
   // World width/height in cells.
   size: 250,
   // Maximum number of simulation ticks before forced win.
@@ -141,6 +139,4 @@ const DEFAULT_CONFIG = {
   carnivoreMaxAge: 180,
 };
 
-module.exports = {
-  DEFAULT_CONFIG,
-};
+export type SimulationConfig = typeof DEFAULT_CONFIG;
