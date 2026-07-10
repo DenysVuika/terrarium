@@ -1,42 +1,14 @@
-import type { SimulationConfig } from './config.ts';
-import { createRng, type Rng } from './rng.ts';
-import { TERRAIN, World } from './world.ts';
-
-type InsectKind = 'herbivore' | 'carnivore';
-type InsectStage = 'egg' | 'larva' | 'adult';
-
-interface Plant {
-  cell: number;
-  growth: number;
-  wilted: boolean;
-  recoverTicks: number;
-  stressTicks: number;
-}
-
-interface Insect {
-  id: string;
-  kind: InsectKind;
-  cell: number;
-  lastCell: number;
-  age: number;
-  stage: InsectStage;
-  stageTicks: number;
-  energy: number;
-  starvationTicks: number;
-  cooldown: number;
-  stepCharge: number;
-  alive: boolean;
-  ap: number;
-}
-
-interface TickStats {
-  herbivoreBirths: number;
-  carnivoreBirths: number;
-  herbivoreDeaths: number;
-  carnivoreDeaths: number;
-  herbivoreKillsByCarnivores: number;
-  carnivoreKillsByCarnivores: number;
-}
+import type { SimulationConfig } from './config';
+import type { SimContext, TickStats } from './context';
+import { createRng, type Rng } from './rng';
+import { TERRAIN, World } from './world';
+import { Plant } from './entities/plant';
+// Species imports trigger self-registration in insectRegistry
+import './entities/herbivore';
+import './entities/carnivore';
+import { EntityRepository } from './entities/repository';
+import { insectRegistry } from './entities/insect-registry';
+import { formatSimulationEvent, type SimulationEvent } from './events';
 
 export interface Snapshot {
   tick: number;
@@ -53,7 +25,10 @@ export interface Snapshot {
   drinkableCells: number;
 }
 
-export interface ReplayFrame extends Omit<Snapshot, 'plants' | 'herbivores' | 'carnivores'> {
+export interface ReplayFrame extends Omit<
+  Snapshot,
+  'plants' | 'herbivores' | 'carnivores'
+> {
   plants: number[];
   herbivores: number[];
   carnivores: number[];
@@ -93,18 +68,6 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function stageFromGrowth(growth: number): 'seed' | 'sprout' | 'mature' {
-  if (growth < 20) return 'seed';
-  if (growth < 80) return 'sprout';
-  return 'mature';
-}
-
-function nutrientDrainByGrowth(growth: number): number {
-  if (growth < 20) return 0.2;
-  if (growth < 80) return 0.5;
-  return 1;
-}
-
 class Simulator {
   config: SimulationConfig;
   rng: Rng;
@@ -117,9 +80,7 @@ class Simulator {
   lowO2Ticks: number;
   highCO2Ticks: number;
   lowWaterTicks: number;
-  plants: Map<number, Plant>;
-  herbivores: Insect[];
-  carnivores: Insect[];
+  entities: EntityRepository;
   entityId: number;
   history: Snapshot[];
   outcome: Outcome | null;
@@ -143,9 +104,7 @@ class Simulator {
     this.highCO2Ticks = 0;
     this.lowWaterTicks = 0;
 
-    this.plants = new Map<number, Plant>();
-    this.herbivores = [];
-    this.carnivores = [];
+    this.entities = new EntityRepository();
     this.entityId = 0;
 
     this.history = [];
@@ -165,76 +124,45 @@ class Simulator {
   seedInitialPopulation(): void {
     for (let index = 0; index < this.config.initialPlants; index += 1) {
       const cell = this.world.randomCell(
-        (candidate) => this.world.isSoil(candidate) && !this.plants.has(candidate),
+        (candidate) =>
+          this.world.isSoil(candidate) && !this.entities.plants.has(candidate),
       );
       if (cell >= 0) {
-        this.plants.set(cell, {
+        this.entities.plants.set(
           cell,
-          growth: this.rng.int(10, 95),
-          wilted: false,
-          recoverTicks: 0,
-          stressTicks: 0,
-        });
-      }
-    }
-
-    for (let index = 0; index < this.config.initialHerbivores; index += 1) {
-      const cell = this.world.randomCell(
-        (candidate) => this.world.isWalkable(candidate) && !this.isOccupied(candidate),
-      );
-      if (cell >= 0) {
-        this.herbivores.push(
-          this.createInsect('herbivore', cell, this.rng.int(6, 12)),
+          new Plant(this.nextId('p'), cell, this.rng.int(10, 95)),
         );
       }
     }
 
-    for (let index = 0; index < this.config.initialCarnivores; index += 1) {
-      const cell = this.world.randomCell(
-        (candidate) => this.world.isWalkable(candidate) && !this.isOccupied(candidate),
-      );
-      if (cell >= 0) {
-        const carnivore = this.createInsect(
-          'carnivore',
-          cell,
-          this.rng.int(10, 18),
+    // Seed all registered species in registration order
+    for (const species of insectRegistry.all()) {
+      const count = species.initialCount(this.config);
+      const [minEnergy, maxEnergy] = species.seedEnergyRange;
+
+      for (let index = 0; index < count; index += 1) {
+        const cell = this.world.randomCell(
+          (candidate) =>
+            this.world.isWalkable(candidate) &&
+            !this.entities.isOccupied(candidate),
         );
-        carnivore.ap = this.rng.int(1, 6);
-        this.carnivores.push(carnivore);
+        if (cell >= 0) {
+          const energy = this.rng.int(minEnergy, maxEnergy);
+          const behaviorId =
+            this.rng.pick(species.behaviorIds as string[]) ??
+            species.behaviorIds[0];
+          const insect = species.create(
+            this.nextId(species.kind[0]),
+            cell,
+            energy,
+            this.config,
+            behaviorId,
+          );
+          species.afterSeed?.(insect, this.rng);
+          this.entities.addInsect(insect);
+        }
       }
     }
-  }
-
-  createInsect(kind: InsectKind, cell: number, energy: number): Insect {
-    return {
-      id: this.nextId(kind[0]),
-      kind,
-      cell,
-      lastCell: -1,
-      age: 0,
-      stage: 'egg',
-      stageTicks: 0,
-      energy,
-      starvationTicks: 0,
-      cooldown: 0,
-      stepCharge: 0,
-      alive: true,
-      ap: 0,
-    };
-  }
-
-  isOccupied(cell: number): boolean {
-    for (let index = 0; index < this.herbivores.length; index += 1) {
-      if (this.herbivores[index].alive && this.herbivores[index].cell === cell) {
-        return true;
-      }
-    }
-    for (let index = 0; index < this.carnivores.length; index += 1) {
-      if (this.carnivores[index].alive && this.carnivores[index].cell === cell) {
-        return true;
-      }
-    }
-    return false;
   }
 
   run(options: RunOptions = {}): SimulationResult {
@@ -245,7 +173,9 @@ class Simulator {
     while (!this.outcome && this.tick < this.config.ticks) {
       this.step();
       if (captureFrames && frames) {
-        frames.push(this.buildReplayFrame(this.history[this.history.length - 1]));
+        frames.push(
+          this.buildReplayFrame(this.history[this.history.length - 1]),
+        );
       }
     }
 
@@ -271,15 +201,16 @@ class Simulator {
         herbivoreKillsByCarnivores: this.totalStats.herbivoreKillsByCarnivores,
         carnivoreKillsByCarnivores: this.totalStats.carnivoreKillsByCarnivores,
       },
-      replay: captureFrames && frames
-        ? {
-            version: 1,
-            generatedAt: new Date().toISOString(),
-            size: this.world.size,
-            terrain: Array.from(this.world.terrain),
-            frames,
-          }
-        : null,
+      replay:
+        captureFrames && frames
+          ? {
+              version: 1,
+              generatedAt: new Date().toISOString(),
+              size: this.world.size,
+              terrain: Array.from(this.world.terrain),
+              frames,
+            }
+          : null,
     };
   }
 
@@ -288,29 +219,22 @@ class Simulator {
     const carnivores: number[] = [];
     const insectEggs: number[] = [];
 
-    for (let index = 0; index < this.herbivores.length; index += 1) {
-      if (this.herbivores[index].alive) {
-        const herbivore = this.herbivores[index];
+    for (const herbivore of this.entities.herbivores) {
+      if (herbivore.alive) {
         herbivores.push(herbivore.cell);
-        if (herbivore.stage === 'egg') {
-          insectEggs.push(herbivore.cell);
-        }
+        if (herbivore.stage === 'egg') insectEggs.push(herbivore.cell);
       }
     }
-
-    for (let index = 0; index < this.carnivores.length; index += 1) {
-      if (this.carnivores[index].alive) {
-        const carnivore = this.carnivores[index];
+    for (const carnivore of this.entities.carnivores) {
+      if (carnivore.alive) {
         carnivores.push(carnivore.cell);
-        if (carnivore.stage === 'egg') {
-          insectEggs.push(carnivore.cell);
-        }
+        if (carnivore.stage === 'egg') insectEggs.push(carnivore.cell);
       }
     }
 
     return {
       ...snapshot,
-      plants: Array.from(this.plants.keys()),
+      plants: Array.from(this.entities.plants.keys()),
       herbivores,
       carnivores,
       insectEggs,
@@ -324,6 +248,10 @@ class Simulator {
     }
   }
 
+  emitEvent(event: SimulationEvent): void {
+    this.addEvent(formatSimulationEvent(event));
+  }
+
   createTickStats(): TickStats {
     return {
       herbivoreBirths: 0,
@@ -333,6 +261,18 @@ class Simulator {
       herbivoreKillsByCarnivores: 0,
       carnivoreKillsByCarnivores: 0,
     };
+  }
+
+  countLiveHerbivores(): number {
+    return this.entities.countLiveHerbivores();
+  }
+
+  countLiveCarnivores(): number {
+    return this.entities.countLiveCarnivores();
+  }
+
+  countLiveInsects(): number {
+    return this.entities.countLiveInsects();
   }
 
   getCurrentLight(): number {
@@ -352,41 +292,175 @@ class Simulator {
     }
   }
 
+  // ── Main game loop step ─────────────────────────────────────────────────────
+
   step(): void {
     this.tick += 1;
     this.currentTickEvents = [];
     this.tickStats = this.createTickStats();
 
     const light = this.getCurrentLight();
-    this.addEvent(`cycle: ${this.day ? 'day' : 'night'} light=${light}`);
+    this.emitEvent({
+      type: 'cycle',
+      phase: this.day ? 'day' : 'night',
+      light,
+    });
 
     this.processWeatherAndCellResources();
     this.updateGlobalGases(light);
-    this.processPlants(light);
-    this.processInsects();
+
+    const ctx = this.buildSimContext(light);
+
+    this.processPlants(ctx);
+
+    // Build occupied set just before insect ticks so movement is collision-aware
+    ctx.occupied = this.entities.buildOccupiedSet();
+
+    this.processInsects(ctx);
+
     this.cleanupDead();
     this.evaluateOutcome();
-
     this.history.push(this.snapshot());
     this.advanceDayNightPhase();
   }
 
+  /** Create the per-tick context object shared by all entity tick() calls. */
+  buildSimContext(light: number): SimContext {
+    const entities = this.entities;
+    const addEvent = (msg: string): void => this.addEvent(msg);
+    const emitEvent = (event: SimulationEvent): void => this.emitEvent(event);
+    const nextId = (prefix: string): string => this.nextId(prefix);
+
+    return {
+      world: this.world,
+      config: this.config,
+      rng: this.rng,
+      day: this.day,
+      light,
+      o2: this.o2,
+      co2: this.co2,
+      plants: entities.plants,
+      insects: entities.allInsects(),
+      herbivores: entities.herbivores,
+      carnivores: entities.carnivores,
+      occupied: new Set<number>(),
+      getInsectsByKind(kind: string) {
+        return entities.getByKind(kind);
+      },
+      addEvent(msg: string) {
+        addEvent(msg);
+      },
+      emitEvent(event: SimulationEvent) {
+        emitEvent(event);
+      },
+      stats: this.tickStats,
+      nextId(prefix: string) {
+        return nextId(prefix);
+      },
+    };
+  }
+
+  processPlants(ctx: SimContext): void {
+    const newPlants: Plant[] = [];
+    let bornCount = 0;
+    let diedCount = 0;
+
+    for (const plant of this.entities.plants.values()) {
+      const child = plant.tick(ctx);
+      if (!plant.alive) diedCount += 1;
+      if (child !== null) {
+        newPlants.push(child);
+        bornCount += 1;
+      }
+    }
+
+    // Remove dead plants after iterating to avoid modifying the Map mid-loop
+    for (const [cell, plant] of this.entities.plants.entries()) {
+      if (!plant.alive) this.entities.plants.delete(cell);
+    }
+
+    // Add offspring (same tick, consistent with original behaviour)
+    for (const child of newPlants) {
+      if (!this.entities.plants.has(child.cell)) {
+        this.entities.plants.set(child.cell, child);
+      }
+    }
+
+    if (bornCount > 0)
+      this.emitEvent({ type: 'plants-born', count: bornCount });
+    if (diedCount > 0)
+      this.emitEvent({ type: 'plants-died', count: diedCount });
+  }
+
+  processInsects(ctx: SimContext): void {
+    // Iterate all registered species in registration order.
+    // Index-based loops allow newly spawned eggs to be picked up in the same
+    // tick (they skip tickBehavior because stage !== 'adult').
+    for (const species of insectRegistry.all()) {
+      const insects = this.entities.getByKind(species.kind);
+      for (let i = 0; i < insects.length; i += 1) {
+        if (insects[i].alive) insects[i].tick(ctx);
+      }
+    }
+
+    // Accumulate totals and emit summary events
+    this.totalStats.herbivoreBirths += ctx.stats.herbivoreBirths;
+    this.totalStats.carnivoreBirths += ctx.stats.carnivoreBirths;
+    this.totalStats.herbivoreDeaths += ctx.stats.herbivoreDeaths;
+    this.totalStats.carnivoreDeaths += ctx.stats.carnivoreDeaths;
+    this.totalStats.herbivoreKillsByCarnivores +=
+      ctx.stats.herbivoreKillsByCarnivores;
+    this.totalStats.carnivoreKillsByCarnivores +=
+      ctx.stats.carnivoreKillsByCarnivores;
+
+    if (ctx.stats.herbivoreBirths > 0)
+      this.emitEvent({
+        type: 'herbivores-born',
+        count: ctx.stats.herbivoreBirths,
+      });
+    if (ctx.stats.carnivoreBirths > 0)
+      this.emitEvent({
+        type: 'carnivores-born',
+        count: ctx.stats.carnivoreBirths,
+      });
+    if (ctx.stats.herbivoreDeaths > 0)
+      this.emitEvent({
+        type: 'herbivores-died',
+        count: ctx.stats.herbivoreDeaths,
+      });
+    if (ctx.stats.carnivoreDeaths > 0)
+      this.emitEvent({
+        type: 'carnivores-died',
+        count: ctx.stats.carnivoreDeaths,
+      });
+    if (ctx.stats.herbivoreKillsByCarnivores > 0)
+      this.emitEvent({
+        type: 'predation-kills',
+        count: ctx.stats.herbivoreKillsByCarnivores,
+      });
+    if (ctx.stats.carnivoreKillsByCarnivores > 0)
+      this.emitEvent({
+        type: 'rival-kills',
+        count: ctx.stats.carnivoreKillsByCarnivores,
+      });
+  }
+
   snapshot(): Snapshot {
-    const plantCount = this.plants.size;
-    const herbivoreCount = this.herbivores.filter((herbivore) => herbivore.alive).length;
-    const carnivoreCount = this.carnivores.filter((carnivore) => carnivore.alive).length;
+    const plantCount = this.entities.plants.size;
+    const herbivoreCount = this.countLiveHerbivores();
+    const carnivoreCount = this.countLiveCarnivores();
     const eggCount =
-      this.herbivores.filter((herbivore) => herbivore.alive && herbivore.stage === 'egg').length +
-      this.carnivores.filter((carnivore) => carnivore.alive && carnivore.stage === 'egg').length;
+      this.entities.herbivores.filter((h) => h.alive && h.stage === 'egg')
+        .length +
+      this.entities.carnivores.filter((c) => c.alive && c.stage === 'egg')
+        .length;
 
     let totalWater = 0;
     let drinkableCells = 0;
     for (let index = 0; index < this.world.length; index += 1) {
       const water = this.world.water[index];
       totalWater += water;
-      if (water > 1) {
-        drinkableCells += 1;
-      }
+      if (water > 1) drinkableCells += 1;
     }
 
     return {
@@ -428,7 +502,9 @@ class Simulator {
       } else {
         const waterNeighbors = this.world
           .neighbors4(index)
-          .filter((neighbor) => this.world.terrain[neighbor] === TERRAIN.WATER).length;
+          .filter(
+            (neighbor) => this.world.terrain[neighbor] === TERRAIN.WATER,
+          ).length;
         if (waterNeighbors > 0) {
           this.world.water[index] +=
             waterNeighbors * this.config.moistureSeepageFromAdjacentWater;
@@ -443,19 +519,15 @@ class Simulator {
       this.world.nutrients[index] = clamp(this.world.nutrients[index], 0, 300);
     }
 
-    if (rainEvents > 0) {
-      this.addEvent(`weather: rain cells=${rainEvents}`);
-    }
-    if (droughtEvents > 0) {
-      this.addEvent(`weather: drought cells=${droughtEvents}`);
-    }
+    if (rainEvents > 0)
+      this.emitEvent({ type: 'weather-rain', cells: rainEvents });
+    if (droughtEvents > 0)
+      this.emitEvent({ type: 'weather-drought', cells: droughtEvents });
   }
 
   updateGlobalGases(light: number): void {
-    const plantCount = this.plants.size;
-    const insects =
-      this.herbivores.filter((herbivore) => herbivore.alive).length +
-      this.carnivores.filter((carnivore) => carnivore.alive).length;
+    const plantCount = this.entities.plants.size;
+    const insects = this.countLiveInsects();
 
     const photosynthesisFactor = light >= 50 ? light / 100 : 0;
     const scaledPlantFlux = 2 * (plantCount / 10) * photosynthesisFactor;
@@ -473,612 +545,14 @@ class Simulator {
     this.co2 = clamp(this.co2, 0, 100);
   }
 
-  processPlants(light: number): void {
-    const toRemove: number[] = [];
-    const toAdd: Plant[] = [];
-    const co2Penalty = this.co2 > 90 ? 0.5 : 1;
-
-    for (const [cell, plant] of this.plants.entries()) {
-      const drain = nutrientDrainByGrowth(plant.growth);
-      this.world.nutrients[cell] = clamp(this.world.nutrients[cell] - drain, 0, 300);
-
-      const hasResources =
-        this.world.water[cell] > 30 && this.world.nutrients[cell] > 20;
-      const conditionsGood = light >= 50 && hasResources;
-
-      if (conditionsGood) {
-        plant.growth = clamp(plant.growth + 1 * co2Penalty, 0, 100);
-        if (plant.wilted) {
-          plant.recoverTicks += 1;
-          if (plant.recoverTicks >= 3) {
-            plant.wilted = false;
-            plant.recoverTicks = 0;
-          }
-        }
-      } else if (light === 0 && hasResources) {
-        plant.growth = clamp(plant.growth - this.config.plantNightShrink, 0, 100);
-        plant.recoverTicks = 0;
-      } else {
-        if (plant.growth < 10) {
-          toRemove.push(cell);
-          continue;
-        }
-
-        plant.growth = clamp(plant.growth - this.config.plantStressShrink, 0, 100);
-        plant.wilted = true;
-        plant.recoverTicks = 0;
-      }
-
-      if (
-        stageFromGrowth(plant.growth) === 'mature' &&
-        this.world.nutrients[cell] > 50 &&
-        this.rng.chance(this.config.plantReproductionChance)
-      ) {
-        const options = this.world
-          .neighbors4(cell)
-          .filter((neighbor) => this.world.isSoil(neighbor) && !this.plants.has(neighbor));
-
-        if (options.length > 0) {
-          const target = this.rng.pick(options);
-          if (target !== null) {
-            this.world.nutrients[cell] = clamp(this.world.nutrients[cell] - 10, 0, 300);
-            toAdd.push({
-              cell: target,
-              growth: 0,
-              wilted: false,
-              recoverTicks: 0,
-              stressTicks: 0,
-            });
-          }
-        }
-      }
-    }
-
-    for (let index = 0; index < toRemove.length; index += 1) {
-      const cell = toRemove[index];
-      this.plants.delete(cell);
-      this.world.nutrients[cell] = clamp(this.world.nutrients[cell] + 50, 0, 300);
-    }
-
-    if (toAdd.length > 0) {
-      this.addEvent(`plants: born=${toAdd.length}`);
-    }
-    if (toRemove.length > 0) {
-      this.addEvent(`plants: died=${toRemove.length}`);
-    }
-
-    for (let index = 0; index < toAdd.length; index += 1) {
-      if (!this.plants.has(toAdd[index].cell)) {
-        this.plants.set(toAdd[index].cell, toAdd[index]);
-      }
-    }
-  }
-
-  processInsects(): void {
-    const occupied = new Set<number>();
-    for (let index = 0; index < this.herbivores.length; index += 1) {
-      if (this.herbivores[index].alive) occupied.add(this.herbivores[index].cell);
-    }
-    for (let index = 0; index < this.carnivores.length; index += 1) {
-      if (this.carnivores[index].alive) occupied.add(this.carnivores[index].cell);
-    }
-
-    for (let index = 0; index < this.herbivores.length; index += 1) {
-      const herbivore = this.herbivores[index];
-      if (!herbivore.alive) continue;
-      this.updateInsectLifecycle(herbivore, occupied, false);
-      if (!herbivore.alive || herbivore.stage !== 'adult') continue;
-      this.runHerbivoreTurn(herbivore, occupied);
-    }
-
-    for (let index = 0; index < this.carnivores.length; index += 1) {
-      const carnivore = this.carnivores[index];
-      if (!carnivore.alive) continue;
-      this.updateInsectLifecycle(carnivore, occupied, true);
-      if (!carnivore.alive || carnivore.stage !== 'adult') continue;
-      this.runCarnivoreTurn(carnivore, occupied);
-    }
-
-    if (this.tickStats.herbivoreBirths > 0) {
-      this.addEvent(`herbivores: born=${this.tickStats.herbivoreBirths}`);
-    }
-    if (this.tickStats.carnivoreBirths > 0) {
-      this.addEvent(`carnivores: born=${this.tickStats.carnivoreBirths}`);
-    }
-    if (this.tickStats.herbivoreDeaths > 0) {
-      this.addEvent(`herbivores: died=${this.tickStats.herbivoreDeaths}`);
-    }
-    if (this.tickStats.carnivoreDeaths > 0) {
-      this.addEvent(`carnivores: died=${this.tickStats.carnivoreDeaths}`);
-    }
-    if (this.tickStats.herbivoreKillsByCarnivores > 0) {
-      this.addEvent(
-        `predation: herbivore-kills=${this.tickStats.herbivoreKillsByCarnivores}`,
-      );
-    }
-    if (this.tickStats.carnivoreKillsByCarnivores > 0) {
-      this.addEvent(
-        `combat: carnivore-kills=${this.tickStats.carnivoreKillsByCarnivores}`,
-      );
-    }
-
-    this.totalStats.herbivoreBirths += this.tickStats.herbivoreBirths;
-    this.totalStats.carnivoreBirths += this.tickStats.carnivoreBirths;
-    this.totalStats.herbivoreDeaths += this.tickStats.herbivoreDeaths;
-    this.totalStats.carnivoreDeaths += this.tickStats.carnivoreDeaths;
-    this.totalStats.herbivoreKillsByCarnivores +=
-      this.tickStats.herbivoreKillsByCarnivores;
-    this.totalStats.carnivoreKillsByCarnivores +=
-      this.tickStats.carnivoreKillsByCarnivores;
-  }
-
-  updateInsectLifecycle(
-    entity: Insect,
-    occupied: Set<number>,
-    isCarnivore: boolean,
-  ): void {
-    entity.age += 1;
-    entity.stageTicks += 1;
-    const baseMetabolism = isCarnivore
-      ? this.config.carnivoreMetabolismPerTick
-      : this.config.herbivoreMetabolismPerTick;
-    const metabolismMultiplier = this.day ? 1 : this.config.nightMetabolismMultiplier;
-    entity.energy -= baseMetabolism * metabolismMultiplier;
-
-    if (this.o2 < 10) {
-      entity.energy -= 1;
-    }
-
-    if (entity.cooldown > 0) {
-      entity.cooldown -= 1;
-    }
-
-    entity.stepCharge = clamp(
-      entity.stepCharge + this.config.insectStepChargePerTick,
-      0,
-      2.5,
-    );
-
-    if (isCarnivore) {
-      entity.ap = clamp(entity.ap + this.config.carnivoreApRegenPerTick, 0, 10);
-    }
-
-    const eggStageTicks = isCarnivore
-      ? this.config.carnivoreEggStageTicks
-      : this.config.eggStageTicks;
-    const larvaStageTicks = isCarnivore
-      ? this.config.carnivoreLarvaStageTicks
-      : this.config.larvaStageTicks;
-
-    if (entity.stage === 'egg' && entity.stageTicks >= eggStageTicks) {
-      entity.stage = 'larva';
-      entity.stageTicks = 0;
-    } else if (entity.stage === 'larva' && entity.stageTicks >= larvaStageTicks) {
-      entity.stage = 'adult';
-      entity.stageTicks = 0;
-    }
-
-    const hasNearbyWater = this.world
-      .neighbors8(entity.cell)
-      .some((neighbor) => this.world.water[neighbor] >= this.config.insectDrinkAmount);
-
-    if (hasNearbyWater) {
-      const waterSources = this.world
-        .neighbors8(entity.cell)
-        .filter((neighbor) => this.world.water[neighbor] >= this.config.insectDrinkAmount);
-      const drinkCell = this.rng.pick(waterSources);
-      if (drinkCell !== null) {
-        this.world.water[drinkCell] = clamp(
-          this.world.water[drinkCell] - this.config.insectDrinkAmount,
-          0,
-          100,
-        );
-      }
-    } else {
-      entity.energy -= isCarnivore
-        ? this.config.carnivoreDehydrationPenalty
-        : this.config.herbivoreDehydrationPenalty;
-    }
-
-    if (entity.energy <= 0) {
-      entity.starvationTicks += 1;
-    } else {
-      entity.starvationTicks = 0;
-    }
-
-    const maxAge = isCarnivore
-      ? this.config.carnivoreMaxAge
-      : this.config.herbivoreMaxAge;
-    const starvationLimit = isCarnivore
-      ? this.config.carnivoreStarvationTicks
-      : this.config.herbivoreStarvationTicks;
-    if (entity.starvationTicks >= starvationLimit || entity.age >= maxAge) {
-      entity.alive = false;
-      occupied.delete(entity.cell);
-      this.world.nutrients[entity.cell] = clamp(
-        this.world.nutrients[entity.cell] + 20,
-        0,
-        300,
-      );
-      if (isCarnivore) {
-        entity.ap = 0;
-        this.tickStats.carnivoreDeaths += 1;
-      } else {
-        this.tickStats.herbivoreDeaths += 1;
-      }
-    }
-  }
-
-  runHerbivoreTurn(herbivore: Insect, occupied: Set<number>): void {
-    const targetPlant = this.findNearestPlant(herbivore.cell, 2);
-    if (targetPlant >= 0) {
-      this.moveToward(herbivore, targetPlant, occupied, false);
-    } else {
-      this.moveRandom(herbivore, occupied, false);
-    }
-
-    const consumablePlants = [herbivore.cell]
-      .concat(this.world.neighbors8(herbivore.cell))
-      .filter((cell, index, cells) => cells.indexOf(cell) === index)
-      .filter((cell) => this.plants.has(cell));
-
-    if (consumablePlants.length > 0 && this.rng.chance(0.8)) {
-      const plantCell = this.rng.pick(consumablePlants);
-      if (plantCell !== null) {
-        this.plants.delete(plantCell);
-        this.world.nutrients[plantCell] = clamp(this.world.nutrients[plantCell] + 50, 0, 300);
-        herbivore.energy += 5;
-      }
-    }
-
-    const localHerbivores = this.world
-      .neighbors8(herbivore.cell)
-      .filter((cell) =>
-        this.herbivores.some(
-          (other) => other.alive && other.cell === cell && other.id !== herbivore.id,
-        ),
-      ).length;
-    const liveHerbivores = this.herbivores.filter((entity) => entity.alive).length;
-    const herbivoreGlobalCap = Math.max(
-      1,
-      Math.floor(this.plants.size * this.config.herbivorePopulationCapPerPlant),
-    );
-
-    if (
-      herbivore.energy >= this.config.herbivoreBreedEnergyMin &&
-      herbivore.cooldown <= 0 &&
-      localHerbivores < this.config.herbivoreBreedLocalCap &&
-      liveHerbivores < herbivoreGlobalCap &&
-      this.rng.chance(this.config.herbivoreBreedChance)
-    ) {
-      const spawnCell = this.findSpawnCell(herbivore.cell, occupied);
-      if (spawnCell >= 0) {
-        herbivore.energy -= this.config.herbivoreBreedEnergyCost;
-        herbivore.cooldown = this.config.herbivoreBreedCooldown;
-        const child = this.createInsect('herbivore', spawnCell, 5);
-        this.herbivores.push(child);
-        occupied.add(spawnCell);
-        this.tickStats.herbivoreBirths += 1;
-      }
-    }
-  }
-
-  runCarnivoreTurn(carnivore: Insect, occupied: Set<number>): void {
-    let attackUsed = false;
-    let chaseUsed = false;
-
-    const adjacentHerbivores = this.herbivores.filter(
-      (herbivore) =>
-        herbivore.alive && this.world.neighbors8(carnivore.cell).includes(herbivore.cell),
-    );
-
-    if (adjacentHerbivores.length > 0 && carnivore.ap >= 3 && !attackUsed) {
-      attackUsed = true;
-      carnivore.ap -= 3;
-      const prey = this.rng.pick(adjacentHerbivores);
-
-      if (prey && this.rng.chance(this.config.carnivorePreyFleeChance)) {
-        prey.energy -= 1;
-        this.fleeFrom(prey, carnivore.cell, occupied);
-        if (!chaseUsed) {
-          chaseUsed = true;
-          this.moveToward(carnivore, prey.cell, occupied, true);
-        }
-      } else if (prey) {
-        prey.energy -= this.config.carnivoreAttackDamage;
-        if (prey.energy <= 0) {
-          prey.alive = false;
-          occupied.delete(prey.cell);
-          this.world.nutrients[prey.cell] = clamp(this.world.nutrients[prey.cell] + 20, 0, 300);
-          carnivore.energy += this.config.carnivoreKillEnergyGain;
-          carnivore.ap = clamp(carnivore.ap + 5, 0, 10);
-          this.tickStats.herbivoreDeaths += 1;
-          this.tickStats.herbivoreKillsByCarnivores += 1;
-        }
-      }
-    }
-
-    if (!attackUsed) {
-      const targetHerbivore = this.findNearestEntity(
-        carnivore.cell,
-        this.herbivores,
-        this.config.carnivoreHuntRadius,
-      );
-      if (targetHerbivore) {
-        this.moveToward(carnivore, targetHerbivore.cell, occupied, true);
-      } else if (this.rng.chance(this.config.carnivoreRestChanceNoPrey)) {
-        carnivore.energy += this.config.carnivoreRestEnergyRecovery;
-      } else {
-        this.moveRandom(carnivore, occupied, true);
-      }
-    }
-
-    const adjacentCarnivores = this.carnivores.filter(
-      (other) =>
-        other.alive &&
-        other.id !== carnivore.id &&
-        this.world.neighbors8(carnivore.cell).includes(other.cell),
-    );
-
-    if (
-      !attackUsed &&
-      adjacentCarnivores.length > 0 &&
-      carnivore.ap >= 3 &&
-      carnivore.energy >= this.config.carnivoreRivalFightEnergyMin &&
-      this.rng.chance(this.config.carnivoreRivalFightChance)
-    ) {
-      attackUsed = true;
-      const rival = this.rng.pick(adjacentCarnivores);
-      if (rival) {
-        carnivore.ap -= 3;
-        if (rival.ap >= 3) {
-          rival.ap -= 3;
-        }
-        carnivore.energy -= 2;
-        rival.energy -= 2;
-        if (rival.energy <= 0) {
-          rival.alive = false;
-          rival.ap = 0;
-          occupied.delete(rival.cell);
-          this.world.nutrients[rival.cell] = clamp(this.world.nutrients[rival.cell] + 20, 0, 300);
-          carnivore.energy += 5;
-          carnivore.ap = clamp(carnivore.ap + 5, 0, 10);
-          this.tickStats.carnivoreDeaths += 1;
-          this.tickStats.carnivoreKillsByCarnivores += 1;
-        }
-      }
-    }
-
-    const localCarnivores = this.world
-      .neighbors8(carnivore.cell)
-      .filter((cell) =>
-        this.carnivores.some(
-          (other) => other.alive && other.cell === cell && other.id !== carnivore.id,
-        ),
-      ).length;
-    const liveCarnivores = this.carnivores.filter((entity) => entity.alive).length;
-    const liveHerbivores = this.herbivores.filter((entity) => entity.alive).length;
-    const carnivoreGlobalCap = Math.max(
-      1,
-      Math.floor(liveHerbivores * this.config.carnivorePopulationCapPerHerbivore),
-    );
-
-    if (
-      carnivore.energy >= this.config.carnivoreBreedEnergyMin &&
-      carnivore.cooldown <= 0 &&
-      localCarnivores < this.config.carnivoreBreedLocalCap &&
-      liveCarnivores < carnivoreGlobalCap &&
-      this.rng.chance(this.config.carnivoreBreedChance)
-    ) {
-      const spawnCell = this.findSpawnCell(carnivore.cell, occupied);
-      if (spawnCell >= 0) {
-        carnivore.energy -= this.config.carnivoreBreedEnergyCost;
-        carnivore.cooldown = this.config.carnivoreBreedCooldown;
-        carnivore.ap = 0;
-        const child = this.createInsect('carnivore', spawnCell, 7);
-        this.carnivores.push(child);
-        occupied.add(spawnCell);
-        this.tickStats.carnivoreBirths += 1;
-      }
-    }
-  }
-
-  findNearestPlant(originCell: number, radius: number): number {
-    const origin = this.world.coords(originCell);
-    let nearest = -1;
-    let bestDistance = Number.POSITIVE_INFINITY;
-
-    for (const cell of this.plants.keys()) {
-      const position = this.world.coords(cell);
-      const distance = Math.abs(position.x - origin.x) + Math.abs(position.y - origin.y);
-      if (distance <= radius && distance < bestDistance) {
-        bestDistance = distance;
-        nearest = cell;
-      }
-    }
-
-    return nearest;
-  }
-
-  findNearestEntity(originCell: number, list: Insect[], radius: number): Insect | null {
-    const origin = this.world.coords(originCell);
-    let nearest: Insect | null = null;
-    let bestDistance = Number.POSITIVE_INFINITY;
-
-    for (let index = 0; index < list.length; index += 1) {
-      const entity = list[index];
-      if (!entity.alive) continue;
-      const position = this.world.coords(entity.cell);
-      const distance = Math.abs(position.x - origin.x) + Math.abs(position.y - origin.y);
-      if (distance <= radius && distance < bestDistance) {
-        bestDistance = distance;
-        nearest = entity;
-      }
-    }
-
-    return nearest;
-  }
-
-  moveToward(
-    entity: Insect,
-    targetCell: number,
-    occupied: Set<number>,
-    isCarnivore: boolean,
-  ): boolean {
-    const target = this.world.coords(targetCell);
-
-    const options = this.world
-      .neighbors8(entity.cell)
-      .filter((cell) => this.world.isWalkable(cell) && !occupied.has(cell));
-
-    if (!options.length) {
-      return false;
-    }
-
-    options.sort((left, right) => {
-      const leftPosition = this.world.coords(left);
-      const rightPosition = this.world.coords(right);
-      let leftDistance = Math.abs(leftPosition.x - target.x) + Math.abs(leftPosition.y - target.y);
-      let rightDistance = Math.abs(rightPosition.x - target.x) + Math.abs(rightPosition.y - target.y);
-
-      if (entity.lastCell >= 0 && left === entity.lastCell) {
-        leftDistance += 0.35;
-      }
-      if (entity.lastCell >= 0 && right === entity.lastCell) {
-        rightDistance += 0.35;
-      }
-
-      leftDistance += this.rng.next() * 0.05;
-      rightDistance += this.rng.next() * 0.05;
-      return leftDistance - rightDistance;
-    });
-
-    const chosen = options[0];
-    if (chosen === entity.cell) {
-      return false;
-    }
-
-    return this.tryMove(entity, chosen, occupied, isCarnivore);
-  }
-
-  moveRandom(entity: Insect, occupied: Set<number>, isCarnivore: boolean): boolean {
-    const options = this.world
-      .neighbors8(entity.cell)
-      .filter((cell) => this.world.isWalkable(cell) && !occupied.has(cell));
-
-    if (!options.length) {
-      return false;
-    }
-
-    let bestScore = Number.NEGATIVE_INFINITY;
-    let bestCell = options[0];
-
-    for (let index = 0; index < options.length; index += 1) {
-      const option = options[index];
-      let score = this.rng.next();
-
-      score += this.world.water[option] * 0.02;
-
-      if (entity.lastCell >= 0 && option === entity.lastCell) {
-        score -= 2;
-      }
-
-      if (!isCarnivore) {
-        const nearbyPlants = this.world
-          .neighbors8(option)
-          .filter((cell) => this.plants.has(cell)).length;
-        score += nearbyPlants * 0.7;
-      }
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestCell = option;
-      }
-    }
-
-    return this.tryMove(entity, bestCell, occupied, isCarnivore);
-  }
-
-  tryMove(
-    entity: Insect,
-    targetCell: number,
-    occupied: Set<number>,
-    isCarnivore: boolean,
-  ): boolean {
-    const terrain = this.world.terrain[targetCell];
-    const stepCost = terrain === TERRAIN.SAND ? this.config.sandStepCost : 1;
-
-    if (entity.stepCharge < stepCost) {
-      return false;
-    }
-
-    const previousCell = entity.cell;
-    occupied.delete(entity.cell);
-    entity.cell = targetCell;
-    entity.lastCell = previousCell;
-    occupied.add(entity.cell);
-
-    entity.stepCharge -= stepCost;
-    entity.energy -= isCarnivore
-      ? this.config.carnivoreMoveEnergyCost
-      : this.config.herbivoreMoveEnergyCost;
-
-    if (isCarnivore && terrain === TERRAIN.SAND) {
-      entity.ap = clamp(entity.ap - 1, 0, 10);
-    }
-
-    return true;
-  }
-
-  fleeFrom(prey: Insect, predatorCell: number, occupied: Set<number>): void {
-    const predator = this.world.coords(predatorCell);
-    const options = this.world
-      .neighbors8(prey.cell)
-      .filter((cell) => this.world.isWalkable(cell) && !occupied.has(cell));
-
-    if (!options.length) {
-      return;
-    }
-
-    options.sort((left, right) => {
-      const leftPosition = this.world.coords(left);
-      const rightPosition = this.world.coords(right);
-      let leftDistance = Math.abs(leftPosition.x - predator.x) + Math.abs(leftPosition.y - predator.y);
-      let rightDistance = Math.abs(rightPosition.x - predator.x) + Math.abs(rightPosition.y - predator.y);
-
-      if (prey.lastCell >= 0 && left === prey.lastCell) {
-        leftDistance -= 0.35;
-      }
-      if (prey.lastCell >= 0 && right === prey.lastCell) {
-        rightDistance -= 0.35;
-      }
-      return rightDistance - leftDistance;
-    });
-
-    const previousCell = prey.cell;
-    occupied.delete(prey.cell);
-    prey.cell = options[0];
-    prey.lastCell = previousCell;
-    occupied.add(prey.cell);
-  }
-
-  findSpawnCell(parentCell: number, occupied: Set<number>): number {
-    const options = this.world
-      .neighbors8(parentCell)
-      .filter((cell) => this.world.isWalkable(cell) && !occupied.has(cell));
-    const pick = options.length ? this.rng.pick(options) : null;
-    return pick ?? -1;
-  }
-
   cleanupDead(): void {
-    this.herbivores = this.herbivores.filter((entity) => entity.alive);
-    this.carnivores = this.carnivores.filter((entity) => entity.alive);
+    this.entities.cleanupDead();
   }
 
   evaluateOutcome(): void {
-    const livePlants = this.plants.size;
-    const liveHerbivores = this.herbivores.filter((entity) => entity.alive).length;
-    const liveCarnivores = this.carnivores.filter((entity) => entity.alive).length;
+    const livePlants = this.entities.plants.size;
+    const liveHerbivores = this.countLiveHerbivores();
+    const liveCarnivores = this.countLiveCarnivores();
     const insects = liveHerbivores + liveCarnivores;
 
     let hasDrinkable = false;
@@ -1093,36 +567,29 @@ class Simulator {
     this.highCO2Ticks = this.co2 > 90 ? this.highCO2Ticks + 1 : 0;
     this.lowWaterTicks = hasDrinkable ? 0 : this.lowWaterTicks + 1;
 
-    if (this.lowO2Ticks > 0) {
-      this.addEvent(`warning: low-o2 streak=${this.lowO2Ticks}`);
-    }
-    if (this.highCO2Ticks > 0) {
-      this.addEvent(`warning: high-co2 streak=${this.highCO2Ticks}`);
-    }
-    if (this.lowWaterTicks > 0) {
-      this.addEvent(`warning: low-water streak=${this.lowWaterTicks}`);
-    }
+    if (this.lowO2Ticks > 0)
+      this.emitEvent({ type: 'warning-low-o2', streak: this.lowO2Ticks });
+    if (this.highCO2Ticks > 0)
+      this.emitEvent({ type: 'warning-high-co2', streak: this.highCO2Ticks });
+    if (this.lowWaterTicks > 0)
+      this.emitEvent({ type: 'warning-low-water', streak: this.lowWaterTicks });
 
     if (this.lowO2Ticks >= 3) {
       this.outcome = { type: 'lose', reason: 'o2 below 10 for 3 ticks' };
       return;
     }
-
     if (this.highCO2Ticks >= 3) {
       this.outcome = { type: 'lose', reason: 'co2 above 90 for 3 ticks' };
       return;
     }
-
     if (this.lowWaterTicks >= 3) {
       this.outcome = { type: 'lose', reason: 'no drinkable water for 3 ticks' };
       return;
     }
-
     if (livePlants === 0) {
       this.outcome = { type: 'lose', reason: 'all plants died' };
       return;
     }
-
     if (insects === 0) {
       this.outcome = { type: 'lose', reason: 'all insects died' };
     }

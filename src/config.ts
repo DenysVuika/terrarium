@@ -1,3 +1,8 @@
+import type { CarnivoreBehaviorId, HerbivoreBehaviorId } from '@/behaviors';
+
+// Re-export for external consumers who need the id types.
+export type { HerbivoreBehaviorId, CarnivoreBehaviorId };
+
 export const DEFAULT_CONFIG = {
   // World width/height in cells.
   size: 250,

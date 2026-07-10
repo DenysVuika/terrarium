@@ -1,4 +1,4 @@
-import type { Rng } from './rng.ts';
+import type { Rng } from './rng';
 
 export const TERRAIN = {
   SOIL: 0,
@@ -87,12 +87,7 @@ export class World {
     }
   }
 
-  paintPatches(
-    type: TerrainValue,
-    count: number,
-    minSize: number,
-    maxSize: number,
-  ): void {
+  paintPatches(type: TerrainValue, count: number, minSize: number, maxSize: number): void {
     for (let patch = 0; patch < count; patch += 1) {
       const target = this.rng.int(minSize, maxSize);
       const start = this.rng.int(0, this.length - 1);
