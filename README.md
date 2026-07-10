@@ -460,7 +460,7 @@ The simulator is designed so a new insect type can be contributed without touchi
 | Step | File to create                                                      | What goes there                                                                                                                                      |
 | ---: | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 |    1 | `src/entities/insects/my-insect.ts`                                 | Class extending `Insect`, lifecycle parameters, hooks                                                                                                |
-|    2 | `src/behaviors/my-insect/` + `src/behaviors/my-insect-behaviors.ts` | Strategy class implementations in `src/behaviors/my-insect/` and a small behavior registry/factory module in `src/behaviors/my-insect-behaviors.ts` |
+|    2 | `src/behaviors/my-insect/`                                           | Strategy class implementations for the species                                                                                                        |
 |    3 | `src/behaviors/behavior-factory.ts`                                 | Wire `resolveMyInsectBehavior` (one function, two lines)                                                                                             |
 |    4 | `src/entities/insects/my-insect.ts` (bottom)                        | `insectRegistry.register({ kind, behaviorIds, seedEnergyRange, initialCount, create })`                                                              |
 |    5 | `src/config.ts` (optional)                                          | Add `initialMyInsects: 0` if a tunable starting population is needed                                                                                 |
@@ -473,26 +473,34 @@ Contributors can import the grouped entity barrels through the existing `@` alia
 
 ```typescript
 import { Insect, insectRegistry } from '@/entities/insects';
-import { resolveDecomposerBehavior, DECOMPOSER_BEHAVIOR_IDS } from '@/behaviors';
+import {
+  DECOMPOSER_BEHAVIOR_IDS,
+  type DecomposerBehaviorId,
+  type InsectBehaviorStrategy,
+  resolveDecomposerBehavior,
+} from '@/behaviors';
 
 export class Decomposer extends Insect {
-  readonly behaviorId: string;
+  readonly behaviorId: DecomposerBehaviorId;
+  private readonly behavior: InsectBehaviorStrategy<Decomposer>;
   private readonly _config: SimulationConfig;
 
   constructor(id, cell, energy, config, behaviorId) {
     super('decomposer', id, cell, energy);
     this._config = config;
     this.behaviorId = behaviorId;
+    this.behavior = resolveDecomposerBehavior(behaviorId);
   }
 
   spawnOffspring(ctx, cell) {
-    return new Decomposer(ctx.nextId('d'), cell, 4, this._config, ctx.rng.pick(DECOMPOSER_BEHAVIOR_IDS) ?? 'default');
+    const behaviorId = ctx.rng.pick(DECOMPOSER_BEHAVIOR_IDS) ?? 'default';
+    return new Decomposer(ctx.nextId('d'), cell, 4, this._config, behaviorId);
   }
 
   // ... lifecycle getters and hooks ...
 
   protected tickBehavior(ctx) {
-    resolveDecomposerBehavior(this.behaviorId).tick(this, ctx);
+    this.behavior.tick(this, ctx);
   }
 }
 
