@@ -127,6 +127,8 @@ class TerrariumScene {
   hoverCell: number | null;
   hoverClientX: number;
   hoverClientY: number;
+  inspectorPinned: boolean;
+  pointerTravel: number;
 
   constructor(
     app: Application,
@@ -156,6 +158,8 @@ class TerrariumScene {
     this.hoverCell = null;
     this.hoverClientX = 0;
     this.hoverClientY = 0;
+    this.inspectorPinned = false;
+    this.pointerTravel = 0;
 
     this.spritePools = createKindRecord(() => []);
     this.spriteUsage = createKindRecord(() => 0);
@@ -253,6 +257,7 @@ class TerrariumScene {
       this.dragging = true;
       this.dragLastX = event.global.x;
       this.dragLastY = event.global.y;
+      this.pointerTravel = 0;
     });
 
     this.app.stage.on('pointermove', (event) => {
@@ -267,6 +272,7 @@ class TerrariumScene {
 
       this.dragLastX = currentX;
       this.dragLastY = currentY;
+      this.pointerTravel += Math.hypot(deltaX, deltaY);
 
       this.cameraX += deltaX;
       this.cameraY += deltaY;
@@ -301,7 +307,23 @@ class TerrariumScene {
     });
 
     this.app.canvas.addEventListener('mouseleave', () => {
-      this.hoverCell = null;
+      if (!this.inspectorPinned) {
+        this.hoverCell = null;
+        this.onHover({
+          visible: false,
+          clientX: this.hoverClientX,
+          clientY: this.hoverClientY,
+          title: '',
+          rows: [],
+        });
+      }
+    });
+  }
+
+  setInspectorPinned(pinned: boolean): void {
+    this.inspectorPinned = pinned;
+
+    if (!pinned && this.hoverCell === null) {
       this.onHover({
         visible: false,
         clientX: this.hoverClientX,
@@ -309,7 +331,18 @@ class TerrariumScene {
         title: '',
         rows: [],
       });
-    });
+      return;
+    }
+
+    if (this.hoverCell !== null) {
+      this.emitHoverDetails(this.hoverCell, this.hoverClientX, this.hoverClientY);
+    }
+  }
+
+  consumePointerTravel(): number {
+    const travel = this.pointerTravel;
+    this.pointerTravel = 0;
+    return travel;
   }
 
   terrainLabel(terrainType: number): string {
@@ -320,6 +353,10 @@ class TerrariumScene {
   }
 
   handleHoverAtClient(clientX: number, clientY: number): void {
+    if (this.inspectorPinned) {
+      return;
+    }
+
     const rect = this.app.canvas.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) {
       return;
@@ -354,6 +391,23 @@ class TerrariumScene {
     const cell = cellY * this.size + cellX;
     this.hoverCell = cell;
     this.emitHoverDetails(cell, clientX, clientY);
+  }
+
+  getClientPointForCell(cell: number): { clientX: number; clientY: number } {
+    const rect = this.app.canvas.getBoundingClientRect();
+    const x = cell % this.size;
+    const y = Math.floor(cell / this.size);
+
+    const worldCenterX = (x + 0.5) * this.baseCellSize;
+    const worldCenterY = (y + 0.5) * this.baseCellSize;
+
+    const screenX = this.cameraX + worldCenterX * this.zoom;
+    const screenY = this.cameraY + worldCenterY * this.zoom;
+
+    const clientX = rect.left + (screenX / this.app.screen.width) * rect.width;
+    const clientY = rect.top + (screenY / this.app.screen.height) * rect.height;
+
+    return { clientX, clientY };
   }
 
   emitHoverDetails(cell: number, clientX: number, clientY: number): void {
@@ -397,10 +451,19 @@ class TerrariumScene {
       rows.push('No entities in this cell.');
     }
 
+    let resolvedClientX = clientX;
+    let resolvedClientY = clientY;
+
+    if (this.inspectorPinned) {
+      const anchored = this.getClientPointForCell(cell);
+      resolvedClientX = anchored.clientX;
+      resolvedClientY = anchored.clientY;
+    }
+
     this.onHover({
       visible: true,
-      clientX,
-      clientY,
+      clientX: resolvedClientX,
+      clientY: resolvedClientY,
       title: `Cell (${coords.x}, ${coords.y}) #${cell}`,
       rows,
     });
@@ -409,6 +472,10 @@ class TerrariumScene {
   applyWorldTransform(): void {
     this.worldContainer.position.set(this.cameraX, this.cameraY);
     this.worldContainer.scale.set(this.zoom);
+
+    if (this.inspectorPinned && this.hoverCell !== null) {
+      this.emitHoverDetails(this.hoverCell, this.hoverClientX, this.hoverClientY);
+    }
   }
 
   worldSizePx(): number {
@@ -795,6 +862,8 @@ class TerrariumScene {
     this.elapsed = 0;
     this.running = true;
     this.visualTime = 0;
+    this.hoverCell = null;
+    this.setInspectorPinned(false);
     this.resetView();
     this.resize();
     this.drawDynamicLayers();
@@ -850,6 +919,7 @@ function createHud(scene: TerrariumScene): void {
   if (!hud) {
     return;
   }
+  const pixiContainer = document.getElementById('pixi-container');
 
   const existingHover = document.getElementById('hover-inspector');
   if (existingHover) {
@@ -861,6 +931,22 @@ function createHud(scene: TerrariumScene): void {
   hoverInspector.setAttribute('aria-live', 'polite');
   hoverInspector.className = 'hover-inspector hidden';
   document.body.appendChild(hoverInspector);
+
+  scene.app.canvas.addEventListener('click', (event) => {
+    if (scene.consumePointerTravel() > 5) {
+      return;
+    }
+
+    if (scene.inspectorPinned) {
+      scene.setInspectorPinned(false);
+      scene.handleHoverAtClient(event.clientX, event.clientY);
+      return;
+    }
+
+    if (scene.hoverCell !== null) {
+      scene.setInspectorPinned(true);
+    }
+  });
 
   hud.innerHTML = `
     <h1>Terrarium Simulator</h1>
@@ -884,7 +970,7 @@ function createHud(scene: TerrariumScene): void {
       </label>
       <output id="speed-value">1.0 tps</output>
     </div>
-    <p class="hud-tip">Tip: drag to pan, mouse wheel or trackpad scroll to zoom.</p>
+    <p class="hud-tip">Tip: drag to pan, mouse wheel or trackpad scroll to zoom, click a cell to pin inspector, click again to unpin.</p>
     <dl id="stats" class="hud-stats" aria-live="polite"></dl>
     <p id="events" class="hud-events"></p>
     <ul class="hud-legend" aria-label="Entity legend">
@@ -983,6 +1069,7 @@ function createHud(scene: TerrariumScene): void {
   scene.onHover = (status) => {
     if (!status.visible) {
       hoverInspector.classList.add('hidden');
+      hoverInspector.classList.remove('pinned');
       return;
     }
 
@@ -994,15 +1081,56 @@ function createHud(scene: TerrariumScene): void {
     `;
 
     hoverInspector.classList.remove('hidden');
+    hoverInspector.classList.toggle('pinned', scene.inspectorPinned);
 
     const offset = 14;
     let left = status.clientX + offset;
     let top = status.clientY + offset;
 
-    const maxLeft = window.innerWidth - hoverInspector.offsetWidth - 8;
-    const maxTop = window.innerHeight - hoverInspector.offsetHeight - 8;
-    left = Math.max(8, Math.min(maxLeft, left));
-    top = Math.max(8, Math.min(maxTop, top));
+    if (pixiContainer) {
+      const viewport = pixiContainer.getBoundingClientRect();
+      const wouldOverflowRight =
+        left + hoverInspector.offsetWidth + 8 > viewport.right;
+      const wouldOverflowBottom =
+        top + hoverInspector.offsetHeight + 8 > viewport.bottom;
+
+      if (wouldOverflowRight) {
+        left = status.clientX - hoverInspector.offsetWidth - offset;
+      }
+
+      if (wouldOverflowBottom) {
+        top = status.clientY - hoverInspector.offsetHeight - offset;
+      }
+    } else {
+      const wouldOverflowRight =
+        left + hoverInspector.offsetWidth + 8 > window.innerWidth;
+      const wouldOverflowBottom =
+        top + hoverInspector.offsetHeight + 8 > window.innerHeight;
+
+      if (wouldOverflowRight) {
+        left = status.clientX - hoverInspector.offsetWidth - offset;
+      }
+
+      if (wouldOverflowBottom) {
+        top = status.clientY - hoverInspector.offsetHeight - offset;
+      }
+    }
+
+    if (pixiContainer) {
+      const viewport = pixiContainer.getBoundingClientRect();
+      const minLeft = viewport.left + 8;
+      const minTop = viewport.top + 8;
+      const maxLeft = viewport.right - hoverInspector.offsetWidth - 8;
+      const maxTop = viewport.bottom - hoverInspector.offsetHeight - 8;
+
+      left = Math.max(minLeft, Math.min(maxLeft, left));
+      top = Math.max(minTop, Math.min(maxTop, top));
+    } else {
+      const maxLeft = window.innerWidth - hoverInspector.offsetWidth - 8;
+      const maxTop = window.innerHeight - hoverInspector.offsetHeight - 8;
+      left = Math.max(8, Math.min(maxLeft, left));
+      top = Math.max(8, Math.min(maxTop, top));
+    }
 
     hoverInspector.style.left = `${left}px`;
     hoverInspector.style.top = `${top}px`;

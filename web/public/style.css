@@ -204,6 +204,11 @@ body {
   padding: 10px;
 }
 
+.hover-inspector.pinned {
+  border-color: rgba(139, 233, 210, 0.9);
+  box-shadow: 0 0 0 1px rgba(139, 233, 210, 0.35), 0 10px 22px rgba(0, 0, 0, 0.35);
+}
+
 .hover-inspector.hidden {
   display: none;
 }
