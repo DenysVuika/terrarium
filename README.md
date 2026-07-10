@@ -15,6 +15,56 @@
 - **Player Actions**: Toggle lid (light/evaporation), add water/soil.
 
 ![Terrarium](assets/terrarium.png)
+![Web UI](assets/webui-01.png)
+
+## 🌐 Web UI (PixiJS)
+
+The repository includes a browser-based renderer in `web/` built with PixiJS and Vite.
+It reuses the simulation domain logic from `src/` and adds:
+
+- Live world rendering with terrain, plants, herbivores, carnivores, and eggs.
+- Playback controls (play/pause, step, reset, speed).
+- Camera controls (drag to pan, wheel to zoom, reset view).
+- In-world clock and phase progress percentage.
+
+### Run Web UI (Development)
+
+![Web UI](assets/webui-02.png)
+
+From the repository root:
+
+```bash
+pnpm web:dev
+```
+
+- Starts the Vite dev server for the `web/` workspace.
+- Default URL: `http://localhost:8080`
+
+### Build Web UI (Production)
+
+From the repository root:
+
+```bash
+pnpm web:build
+```
+
+- Produces production assets in `web/dist/`.
+
+### Web UI Quality Commands
+
+From the repository root:
+
+```bash
+pnpm web:typecheck
+pnpm web:lint
+pnpm web:format:check
+pnpm web:check
+```
+
+- `web:typecheck`: TypeScript validation for frontend code.
+- `web:lint`: Lint frontend source files.
+- `web:format:check`: Verify frontend formatting.
+- `web:check`: Combined frontend validation pipeline.
 
 ## **📜 Core Rules & Mechanics**
 

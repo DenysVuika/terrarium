@@ -13,6 +13,9 @@ import { TERRAIN } from '../../src/world';
 type SimulationStatus = {
   tick: number;
   phase: string;
+  clock: string;
+  phaseRemaining: string;
+  phaseProgress: number;
   light: number;
   plants: number;
   herbivores: number;
@@ -24,6 +27,8 @@ type SimulationStatus = {
   outcome: string;
   events: string;
 };
+
+type TimeScalePreset = '60' | '30' | '15';
 
 type SpriteKind =
   | 'plant-sprout'
@@ -105,6 +110,7 @@ class TerrariumScene {
   dragLastX: number;
   dragLastY: number;
   ticksPerSecond: number;
+  timeScalePreset: TimeScalePreset;
   running: boolean;
   elapsed: number;
   visualTime: number;
@@ -118,6 +124,7 @@ class TerrariumScene {
     this.app = app;
     this.onStatus = onStatus;
     this.textures = textures;
+    this.timeScalePreset = '60';
     this.simulator = this.createSimulator();
     this.size = this.simulator.world.size;
     this.baseCellSize = this.computeCellSize();
@@ -129,7 +136,7 @@ class TerrariumScene {
     this.dragging = false;
     this.dragLastX = 0;
     this.dragLastY = 0;
-    this.ticksPerSecond = 8;
+    this.ticksPerSecond = 1;
     this.running = true;
     this.elapsed = 0;
     this.visualTime = 0;
@@ -168,7 +175,52 @@ class TerrariumScene {
   createSimulator(): Simulator {
     const config = getDefaultConfig();
     config.world.ticks = 500;
+    this.applyTimeScaleToConfig(config, this.timeScalePreset);
     return new Simulator(config);
+  }
+
+  applyTimeScaleToConfig(
+    config: ReturnType<typeof getDefaultConfig>,
+    preset: TimeScalePreset,
+  ): void {
+    const minutesPerTick = Number(preset);
+    const halfDayMinutes = 12 * 60;
+    const ticksPerHalfDay = Math.max(
+      1,
+      Math.round(halfDayMinutes / minutesPerTick),
+    );
+    config.climate.dayTicks = ticksPerHalfDay;
+    config.climate.nightTicks = ticksPerHalfDay;
+  }
+
+  getTimeScaleLabel(): string {
+    if (this.timeScalePreset === '60') return '1h/tick';
+    if (this.timeScalePreset === '30') return '30m/tick';
+    return '15m/tick';
+  }
+
+  getMinutesPerTick(): number {
+    return Number(this.timeScalePreset);
+  }
+
+  getClockLabelForTick(tick: number): string {
+    const minutesPerTick = this.getMinutesPerTick();
+    const totalMinutes = Math.max(0, tick) * minutesPerTick;
+    const day = Math.floor(totalMinutes / (24 * 60)) + 1;
+    const minuteOfDay = totalMinutes % (24 * 60);
+    const hour = Math.floor(minuteOfDay / 60);
+    const minute = minuteOfDay % 60;
+    const hh = String(hour).padStart(2, '0');
+    const mm = String(minute).padStart(2, '0');
+    return `Day ${day}, ${hh}:${mm}`;
+  }
+
+  setTimeScalePreset(preset: TimeScalePreset): void {
+    this.timeScalePreset = preset;
+    this.applyTimeScaleToConfig(this.simulator.config, preset);
+    // Restart current phase progress so visual phase transitions remain predictable.
+    this.simulator.phaseTicksElapsed = 0;
+    this.pushStatus();
   }
 
   computeCellSize(): number {
@@ -624,6 +676,20 @@ class TerrariumScene {
   pushStatus(): void {
     const snapshot = this.simulator.snapshot();
     const phase = snapshot.day ? 'Day' : 'Night';
+    const phaseLength = snapshot.day
+      ? this.simulator.config.climate.dayTicks
+      : this.simulator.config.climate.nightTicks;
+    const safePhaseLength = Math.max(1, Number(phaseLength) || 1);
+    const rawProgress = this.simulator.phaseTicksElapsed / safePhaseLength;
+    const phaseProgress = Math.max(0, Math.min(1, rawProgress));
+    const remainingTicks = Math.max(
+      0,
+      Math.ceil(safePhaseLength - this.simulator.phaseTicksElapsed),
+    );
+    const remainingMinutes = remainingTicks * this.getMinutesPerTick();
+    const remainingHours = Math.floor(remainingMinutes / 60);
+    const remainingMinutesPart = remainingMinutes % 60;
+    const phaseRemaining = `${remainingHours}h ${String(remainingMinutesPart).padStart(2, '0')}m`;
     const outcome = this.simulator.outcome
       ? `${this.simulator.outcome.type.toUpperCase()}: ${this.simulator.outcome.reason}`
       : 'Running';
@@ -631,6 +697,9 @@ class TerrariumScene {
     this.onStatus({
       tick: snapshot.tick,
       phase,
+      clock: this.getClockLabelForTick(snapshot.tick),
+      phaseRemaining,
+      phaseProgress,
       light: snapshot.light,
       plants: snapshot.plants,
       herbivores: snapshot.herbivores,
@@ -661,11 +730,20 @@ function createHud(scene: TerrariumScene): void {
       <button id="step" type="button">Step</button>
       <button id="reset" type="button">Reset</button>
       <button id="reset-view" type="button">Reset View</button>
+      <label for="time-scale">
+        Sim Time
+        <select id="time-scale">
+          <option value="60" selected>1h / tick</option>
+          <option value="30">30m / tick</option>
+          <option value="15">15m / tick</option>
+        </select>
+      </label>
+      <output id="time-scale-value">1h/tick</output>
       <label for="speed">
         Speed
-        <input id="speed" type="range" min="1" max="40" step="1" value="8" />
+        <input id="speed" type="range" min="0.2" max="8" step="0.1" value="1" />
       </label>
-      <output id="speed-value">8 tps</output>
+      <output id="speed-value">1.0 tps</output>
     </div>
     <p class="hud-tip">Tip: drag to pan, mouse wheel or trackpad scroll to zoom.</p>
     <dl id="stats" class="hud-stats" aria-live="polite"></dl>
@@ -686,6 +764,12 @@ function createHud(scene: TerrariumScene): void {
   const resetViewButton = document.getElementById(
     'reset-view',
   ) as HTMLButtonElement;
+  const timeScaleSelect = document.getElementById(
+    'time-scale',
+  ) as HTMLSelectElement;
+  const timeScaleValue = document.getElementById(
+    'time-scale-value',
+  ) as HTMLOutputElement;
   const speedInput = document.getElementById('speed') as HTMLInputElement;
   const speedValue = document.getElementById(
     'speed-value',
@@ -713,10 +797,15 @@ function createHud(scene: TerrariumScene): void {
     scene.resetView();
   });
 
+  timeScaleSelect.addEventListener('change', () => {
+    scene.setTimeScalePreset(timeScaleSelect.value as TimeScalePreset);
+    timeScaleValue.value = scene.getTimeScaleLabel();
+  });
+
   speedInput.addEventListener('input', () => {
     const speed = Number(speedInput.value);
     scene.setTicksPerSecond(speed);
-    speedValue.value = `${speed} tps`;
+    speedValue.value = `${speed.toFixed(1)} tps`;
   });
 
   scene.onStatus = (status) => {
@@ -724,9 +813,17 @@ function createHud(scene: TerrariumScene): void {
     const events = document.getElementById('events');
 
     if (stats) {
+      const phasePercent = Math.max(
+        0,
+        Math.min(100, Math.round(status.phaseProgress * 100)),
+      );
+
       stats.innerHTML = `
         <div><dt>Tick</dt><dd>${status.tick}</dd></div>
+        <div><dt>Clock</dt><dd>${status.clock}</dd></div>
         <div><dt>Phase</dt><dd>${status.phase}</dd></div>
+        <div><dt>Phase Ends In</dt><dd>${status.phaseRemaining}</dd></div>
+        <div><dt>Phase Progress</dt><dd>${phasePercent}%</dd></div>
         <div><dt>Light</dt><dd>${status.light}</dd></div>
         <div><dt>Plants</dt><dd>${status.plants}</dd></div>
         <div><dt>Herbivores</dt><dd>${status.herbivores}</dd></div>
