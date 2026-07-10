@@ -1,5 +1,5 @@
-import type { SimContext } from '../context';
-import { Entity } from './entity';
+import type { SimContext } from '../../context';
+import { Entity } from '../entity';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -32,11 +32,17 @@ export class Plant extends Entity {
 
   tick(ctx: SimContext): Plant | null {
     const { world, config, rng } = ctx;
+    const plantConfig = config.plants;
 
     const drain = nutrientDrainByGrowth(this.growth);
-    world.nutrients[this.cell] = clamp(world.nutrients[this.cell] - drain, 0, 300);
+    world.nutrients[this.cell] = clamp(
+      world.nutrients[this.cell] - drain,
+      0,
+      300,
+    );
 
-    const hasResources = world.water[this.cell] > 30 && world.nutrients[this.cell] > 20;
+    const hasResources =
+      world.water[this.cell] > 30 && world.nutrients[this.cell] > 20;
     const conditionsGood = ctx.light >= 50 && hasResources;
     const co2Penalty = ctx.co2 > 90 ? 0.5 : 1;
 
@@ -50,29 +56,43 @@ export class Plant extends Entity {
         }
       }
     } else if (ctx.light === 0 && hasResources) {
-      this.growth = clamp(this.growth - config.plantNightShrink, 0, 100);
+      this.growth = clamp(this.growth - plantConfig.nightShrink, 0, 100);
       this.recoverTicks = 0;
     } else {
       if (this.growth < 10) {
         this.alive = false;
-        world.nutrients[this.cell] = clamp(world.nutrients[this.cell] + 50, 0, 300);
+        world.nutrients[this.cell] = clamp(
+          world.nutrients[this.cell] + 50,
+          0,
+          300,
+        );
         return null;
       }
-      this.growth = clamp(this.growth - config.plantStressShrink, 0, 100);
+      this.growth = clamp(this.growth - plantConfig.stressShrink, 0, 100);
       this.wilted = true;
       this.recoverTicks = 0;
     }
 
     // Reproduction: mature plant spreads a seed to an adjacent empty soil cell
-    if (this.growth >= 80 && world.nutrients[this.cell] > 50 && rng.chance(config.plantReproductionChance)) {
+    if (
+      this.growth >= 80 &&
+      world.nutrients[this.cell] > 50 &&
+      rng.chance(plantConfig.reproductionChance)
+    ) {
       const options = world
         .neighbors4(this.cell)
-        .filter((neighbor) => world.isSoil(neighbor) && !ctx.plants.has(neighbor));
+        .filter(
+          (neighbor) => world.isSoil(neighbor) && !ctx.plants.has(neighbor),
+        );
 
       if (options.length > 0) {
         const target = rng.pick(options);
         if (target !== null) {
-          world.nutrients[this.cell] = clamp(world.nutrients[this.cell] - 10, 0, 300);
+          world.nutrients[this.cell] = clamp(
+            world.nutrients[this.cell] - 10,
+            0,
+            300,
+          );
           return new Plant(ctx.nextId('p'), target, 0);
         }
       }

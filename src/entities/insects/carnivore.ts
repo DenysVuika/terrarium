@@ -1,11 +1,12 @@
-import type { SimulationConfig } from '../config';
-import type { SimContext } from '../context';
+import type { SimulationConfig } from '../../config';
+import type { SimContext } from '../../context';
 import {
   CARNIVORE_BEHAVIOR_IDS,
   type CarnivoreBehaviorId,
+  type InsectBehaviorStrategy,
   resolveCarnivoreBehavior,
 } from '@/behaviors';
-import { TERRAIN } from '../world';
+import { TERRAIN } from '../../world';
 import { insectRegistry } from './insect-registry';
 import { Insect } from './insect';
 
@@ -16,6 +17,7 @@ function clamp(value: number, min: number, max: number): number {
 export class Carnivore extends Insect {
   ap: number;
   readonly behaviorId: CarnivoreBehaviorId;
+  private readonly behavior: InsectBehaviorStrategy<Carnivore>;
   private readonly _config: SimulationConfig;
 
   constructor(
@@ -28,6 +30,7 @@ export class Carnivore extends Insect {
     super('carnivore', id, cell, energy);
     this._config = config;
     this.behaviorId = behaviorId;
+    this.behavior = resolveCarnivoreBehavior(behaviorId);
     this.ap = 0;
   }
 
@@ -41,34 +44,30 @@ export class Carnivore extends Insect {
     return new Carnivore(ctx.nextId('c'), cell, 7, this._config, behaviorId);
   }
 
-  // Species parameters
-
   protected get eggStageTicks(): number {
-    return this._config.carnivoreEggStageTicks;
+    return this._config.insects.carnivores.eggStageTicks;
   }
   protected get larvaStageTicks(): number {
-    return this._config.carnivoreLarvaStageTicks;
+    return this._config.insects.carnivores.larvaStageTicks;
   }
   protected get maxAge(): number {
-    return this._config.carnivoreMaxAge;
+    return this._config.insects.carnivores.maxAge;
   }
   protected get starvationLimit(): number {
-    return this._config.carnivoreStarvationTicks;
+    return this._config.insects.carnivores.starvationTicks;
   }
   protected get metabolismPerTick(): number {
-    return this._config.carnivoreMetabolismPerTick;
+    return this._config.insects.carnivores.metabolismPerTick;
   }
   protected get dehydrationPenalty(): number {
-    return this._config.carnivoreDehydrationPenalty;
+    return this._config.insects.carnivores.dehydrationPenalty;
   }
   protected get moveEnergyCost(): number {
-    return this._config.carnivoreMoveEnergyCost;
+    return this._config.insects.carnivores.moveEnergyCost;
   }
 
-  // Hooks
-
   protected tickExtraLifecycle(ctx: SimContext): void {
-    this.ap = clamp(this.ap + ctx.config.carnivoreApRegenPerTick, 0, 10);
+    this.ap = clamp(this.ap + ctx.config.insects.carnivores.apRegenPerTick, 0, 10);
   }
 
   protected onAfterMove(targetCell: number, ctx: SimContext): void {
@@ -83,17 +82,15 @@ export class Carnivore extends Insect {
   }
 
   protected tickBehavior(ctx: SimContext): void {
-    resolveCarnivoreBehavior(this.behaviorId).tick(this, ctx);
+    this.behavior.tick(this, ctx);
   }
 }
 
-// Self-register so the simulator discovers this species without any imports in
-// simulator.ts. New species follow the same pattern in their own files.
 insectRegistry.register({
   kind: 'carnivore',
   behaviorIds: CARNIVORE_BEHAVIOR_IDS,
   seedEnergyRange: [10, 18],
-  initialCount: (config) => config.initialCarnivores,
+  initialCount: (config) => config.insects.carnivores.initialCount,
   create: (id, cell, energy, config, behaviorId) =>
     new Carnivore(id, cell, energy, config, behaviorId as CarnivoreBehaviorId),
   afterSeed: (insect, rng) => {

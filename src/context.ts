@@ -1,10 +1,8 @@
 import type { SimulationConfig } from './config';
 import type { Rng } from './rng';
 import type { World } from './world';
-import type { Plant } from './entities/plant';
-import type { Insect } from './entities/insect';
-import type { Herbivore } from './entities/herbivore';
-import type { Carnivore } from './entities/carnivore';
+import type { Plant } from '@/entities/plants';
+import type { Carnivore, Herbivore, Insect } from '@/entities/insects';
 import type { SimulationEvent } from './events';
 
 export interface TickStats {

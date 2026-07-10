@@ -174,7 +174,7 @@
 
 ### **6. Game Loop (Per Tick)**
 
-1. **Day/Night Cycle**: Day and night each span configurable tick windows (`dayTicks` / `nightTicks`).
+1. **Day/Night Cycle**: Day and night each span configurable tick windows (`climate.dayTicks` / `climate.nightTicks`).
 2. **Weather**: Roll for rain/drought.
 3. **Resource Regeneration**: Soil +0.1 nutrients/cell, and water updates from weather + evaporation + seepage.
 4. **Entity Actions**:
@@ -387,6 +387,7 @@ pnpm simulate --replay latest --native-size
 
 - `--ticks <number>`: total ticks (default `100`)
 - `--size <number>`: world width/height (default `250`)
+- `--config <path>`: load config overrides from a `.json`, `.yaml`, or `.yml` file
 - `--seed <string>`: deterministic seed
 - `--plants <number>`: initial plant count
 - `--herbivores <number>`: initial herbivore count
@@ -417,24 +418,48 @@ The simulator uses baseline defaults from `src/config.ts` and then applies CLI o
 
 - Override precedence:
   1. `DEFAULT_CONFIG` in `src/config.ts`
-  2. CLI flags passed to `pnpm simulate ...`
+  2. Optional config file passed with `--config`
+  3. CLI flags passed to `pnpm simulate ...`
 
 - Common tuning groups:
-  - **World/Time**: `size`, `ticks`, `seed`, `lidOpen`, `dayTicks`, `nightTicks`
-  - **Plants**: `plantReproductionChance`, `plantNightShrink`, `plantStressShrink`
-  - **Water/Weather**: `rainChance`, `rainAmount`, `droughtChance`, `droughtAmount`, `evaporationOpen`, seepage settings
-  - **Herbivores**: lifecycle stage ticks, metabolism/dehydration, movement cost, reproduction gates/caps, starvation/age limits
-  - **Carnivores**: hunt/combat values, rest behavior, movement/AP strain, reproduction gates/caps, starvation/age limits
-  - **Global Balance**: gas flux scaling and midpoint pull
+  - **World**: `world.size`, `world.ticks`, `world.seed`, `world.lidOpen`
+  - **Climate**: `climate.dayTicks`, `climate.nightTicks`, weather values, gas balancing, night metabolism multiplier
+  - **Biome**: seepage and terrain-adjacent moisture settings
+  - **Plants**: `plants.initialCount`, reproduction chance, and stress/dormancy shrink values
+  - **Insects**: shared drinking/movement settings plus species-specific trees under `insects.herbivores` and `insects.carnivores`
 
 - Practical workflow:
   1. Keep `src/config.ts` as the canonical baseline.
-  2. Use CLI flags for scenario experiments (`--ticks`, `--day-ticks`, `--night-ticks`, initial populations).
-  3. Promote stable scenario values back into `src/config.ts` once validated.
+  2. Use `--config scenario.yaml` or `--config scenario.json` for grouped scenario overrides.
+  3. Use CLI flags for quick one-off experiments (`--ticks`, `--day-ticks`, `--night-ticks`, initial populations).
+  4. Promote stable scenario values back into `src/config.ts` once validated.
+
+- Example scenario file:
+
+```yaml
+world:
+  seed: scenario-a
+  ticks: 150
+
+plants:
+  initialCount: 2000
+
+insects:
+  herbivores:
+    initialCount: 220
+    breed:
+      chance: 0.1
+```
+
+Run it with:
+
+```bash
+pnpm simulate --config scenario.yaml
+```
 
 - Anti-overpopulation controls:
-  - Herbivores: `herbivoreBreedChance`, `herbivoreBreedCooldown`, `herbivoreBreedLocalCap`, `herbivorePopulationCapPerPlant`
-  - Carnivores: `carnivoreBreedChance`, `carnivoreBreedCooldown`, `carnivoreBreedLocalCap`, `carnivorePopulationCapPerHerbivore`
+  - Herbivores: `insects.herbivores.breed.chance`, `insects.herbivores.breed.cooldown`, `insects.herbivores.breed.localCap`, `insects.herbivores.breed.populationCapPerPlant`
+  - Carnivores: `insects.carnivores.breed.chance`, `insects.carnivores.breed.cooldown`, `insects.carnivores.breed.localCap`, `insects.carnivores.breed.populationCapPerHerbivore`
 
 ### **Behavior Profiles**
 
@@ -457,41 +482,50 @@ Behavior profiles are not configurable per-run from the CLI — the population m
 
 The simulator is designed so a new insect type can be contributed without touching the simulator, context, or repository. The contribution checklist is:
 
-| Step | File to create                                                     | What goes there                                                                                                                                    |
-| ---: | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-|    1 | `src/entities/my-insect.ts`                                        | Class extending `Insect`, lifecycle parameters, hooks                                                                                              |
-|    2 | `src/behaviors/my-insect/` + `src/entities/my-insect-behaviors.ts` | Strategy class implementations in `src/behaviors/my-insect/` and a small behavior registry/factory module in `src/entities/my-insect-behaviors.ts` |
-|    3 | `src/behaviors/behavior-factory.ts`                                | Wire `resolveMyInsectBehavior` (one function, two lines)                                                                                           |
-|    4 | `src/entities/my-insect.ts` (bottom)                               | `insectRegistry.register({ kind, behaviorIds, seedEnergyRange, initialCount, create })`                                                            |
-|    5 | `src/config.ts` (optional)                                         | Add `initialMyInsects: 0` if a tunable starting population is needed                                                                               |
+| Step | File to create                                                      | What goes there                                                                                                                                      |
+| ---: | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+|    1 | `src/entities/insects/my-insect.ts`                                 | Class extending `Insect`, lifecycle parameters, hooks                                                                                                |
+|    2 | `src/behaviors/my-insect/`                                           | Strategy class implementations for the species                                                                                                        |
+|    3 | `src/behaviors/behavior-factory.ts`                                 | Wire `resolveMyInsectBehavior` (one function, two lines)                                                                                             |
+|    4 | `src/entities/insects/my-insect.ts` (bottom)                        | `insectRegistry.register({ kind, behaviorIds, seedEnergyRange, initialCount, create })`                                                              |
+|    5 | `src/config.ts` (optional)                                          | Add a nested config branch such as `insects.myInsects.initialCount` if a tunable starting population is needed                                     |
 
 Once registered, the simulator automatically seeds, ticks, and counts the new species — no other changes needed.
 
-**Minimal example skeleton** (`src/entities/decomposer.ts`):
+Contributors can import the grouped entity barrels through the existing `@` alias, for example `@/entities/insects` and `@/entities/plants`.
+
+**Minimal example skeleton** (`src/entities/insects/decomposer.ts`):
 
 ```typescript
-import { Insect } from './insect.ts';
-import { insectRegistry } from './insect-registry.ts';
-import { resolveDecomposerBehavior, DECOMPOSER_BEHAVIOR_IDS } from './decomposer-behaviors.ts';
+import { Insect, insectRegistry } from '@/entities/insects';
+import {
+  DECOMPOSER_BEHAVIOR_IDS,
+  type DecomposerBehaviorId,
+  type InsectBehaviorStrategy,
+  resolveDecomposerBehavior,
+} from '@/behaviors';
 
 export class Decomposer extends Insect {
-  readonly behaviorId: string;
+  readonly behaviorId: DecomposerBehaviorId;
+  private readonly behavior: InsectBehaviorStrategy<Decomposer>;
   private readonly _config: SimulationConfig;
 
   constructor(id, cell, energy, config, behaviorId) {
     super('decomposer', id, cell, energy);
     this._config = config;
     this.behaviorId = behaviorId;
+    this.behavior = resolveDecomposerBehavior(behaviorId);
   }
 
   spawnOffspring(ctx, cell) {
-    return new Decomposer(ctx.nextId('d'), cell, 4, this._config, ctx.rng.pick(DECOMPOSER_BEHAVIOR_IDS) ?? 'default');
+    const behaviorId = ctx.rng.pick(DECOMPOSER_BEHAVIOR_IDS) ?? 'default';
+    return new Decomposer(ctx.nextId('d'), cell, 4, this._config, behaviorId);
   }
 
   // ... lifecycle getters and hooks ...
 
   protected tickBehavior(ctx) {
-    resolveDecomposerBehavior(this.behaviorId).tick(this, ctx);
+    this.behavior.tick(this, ctx);
   }
 }
 
@@ -508,7 +542,7 @@ insectRegistry.register({
 
 Plants extend `Entity` directly and are simpler to add:
 
-1. Create `src/entities/my-plant.ts` extending `Plant` (or `Entity` for a fully custom tick loop).
+1. Create `src/entities/plants/my-plant.ts` extending `Plant` (or `Entity` for a fully custom tick loop).
 2. Override `tick(ctx): Plant | null` — return a child instance on reproduction, `null` otherwise.
 3. In the simulator's `seedInitialPopulation`, instantiate your plant class alongside the built-in `Plant`.
 
@@ -516,18 +550,14 @@ No registration mechanism is needed for plants because the simulator already pro
 
 ### **Architecture Notes: Strategy + Repository + Events**
 
-The entity architecture separates concerns into dedicated modules:
+The entity architecture separates concerns into a few stable boundaries:
 
-- `src/entities/insect-registry.ts`: singleton registry — the single integration point for new species.
-- `src/entities/repository.ts`: keyed insect storage (`Map<kind, Insect[]>`), typed getters for built-in species, population counts and cleanup.
-- `src/events.ts`: typed simulation events and string formatting for replay/timeline output.
-- `src/behaviors/behavior.ts`: strategy interface, behavior id types, and exported id arrays for random selection.
-- `src/behaviors/index.ts`: barrel exports for behavior ids, resolvers, and behavior classes.
-- `src/behaviors/herbivore/`: herbivore strategy class implementations.
-- `src/behaviors/carnivore/`: carnivore strategy class implementations.
-- `src/behaviors/herbivore-behaviors.ts`: herbivore behavior registry and lookup.
-- `src/behaviors/carnivore-behaviors.ts`: carnivore behavior registry and lookup.
-- `src/behaviors/behavior-factory.ts`: central strategy resolver API consumed by entity classes.
+- Concrete implementations live under `src/entities/plants/` and `src/entities/insects/`.
+- Consumers can use the mapped barrels `@/entities/plants` and `@/entities/insects` for extension code instead of deep relative paths.
+- Plants and insects own lifecycle and mutable state.
+- Behavior strategies own decision-making policy and can be swapped without rewriting lifecycle plumbing.
+- Species registration is the integration point for adding new insect types.
+- Repository and event layers keep collection management and replay/timeline output outside individual entities.
 
 This keeps lifecycle/state in entities and policy logic in strategy modules, enabling easier experimentation without rewriting core lifecycle plumbing.
 
@@ -566,22 +596,6 @@ Replay symbol legend:
 
 - ASCII: `.` soil, `~` water, `:` sand, `[space]` empty, `*` plant, `h` herbivore, `C` carnivore, `o` egg
 - Emoji: `🟫` soil, `🟦` water, `🟨` sand, `⬛` empty, `🌿` plant, `🐛` herbivore, `🦂` carnivore, `🥚` egg
-
-### **Implementation Notes**
-
-- Source files:
-  - `src/world.ts`: grid generation, terrain patches, per-cell resources
-  - `src/simulator.ts`: game loop, resources, entities, combat, win/lose checks
-  - `src/simulate.ts`: CLI entry point, CSV/JSON recording, interactive replay
-  - `src/entities/repository.ts`: entity collection management helpers
-  - `src/events.ts`: typed replay/event timeline primitives
-  - `src/behaviors/behavior.ts`: strategy interfaces and behavior ids
-  - `src/behaviors/index.ts`: behavior barrel exports used by entities and config
-  - `src/behaviors/behavior-factory.ts`: runtime behavior selection facade
-  - `src/behaviors/herbivore/`: herbivore strategy class implementations
-  - `src/behaviors/carnivore/`: carnivore strategy class implementations
-  - `src/behaviors/herbivore-behaviors.ts`: herbivore behavior registry and lookup
-  - `src/behaviors/carnivore-behaviors.ts`: carnivore behavior registry and lookup
 
 ### **Recording Format Guidance**
 

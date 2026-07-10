@@ -3,9 +3,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { parse as parseYaml } from 'yaml';
 
-import { DEFAULT_CONFIG, type SimulationConfig } from './config';
-import { runSimulation, type Outcome, type ReplayPayload, type SimulationResult } from './simulator';
+import {
+  getDefaultConfig,
+  type DeepPartial,
+  type SimulationConfig,
+} from './config';
+import {
+  runSimulation,
+  type Outcome,
+  type ReplayPayload,
+  type SimulationResult,
+} from './simulator';
 
 type SimulationCliConfig = SimulationConfig & {
   sweep: boolean;
@@ -31,9 +41,66 @@ type ReplayRecording = {
   config: SimulationConfig;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function applyConfigOverrides<T extends Record<string, unknown>>(
+  target: T,
+  overrides: DeepPartial<T>,
+): T {
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === undefined) continue;
+
+    const targetValue = target[key as keyof T];
+    if (isRecord(targetValue) && isRecord(value)) {
+      applyConfigOverrides(
+        targetValue as Record<string, unknown>,
+        value as DeepPartial<Record<string, unknown>>,
+      );
+      continue;
+    }
+
+    target[key as keyof T] = value as T[keyof T];
+  }
+
+  return target;
+}
+
+function parseConfigFile(
+  raw: string,
+  filePath: string,
+): DeepPartial<SimulationConfig> {
+  const ext = path.extname(filePath).toLowerCase();
+  const parsed =
+    ext === '.yaml' || ext === '.yml'
+      ? parseYaml(raw)
+      : ext === '.json'
+        ? JSON.parse(raw)
+        : (() => {
+            try {
+              return JSON.parse(raw);
+            } catch {
+              return parseYaml(raw);
+            }
+          })();
+
+  if (!isRecord(parsed)) {
+    throw new Error(`Invalid config file: expected an object in ${filePath}`);
+  }
+
+  return parsed as DeepPartial<SimulationConfig>;
+}
+
+function loadConfigOverrides(filePath: string): DeepPartial<SimulationConfig> {
+  const resolvedPath = path.resolve(filePath);
+  const raw = fs.readFileSync(resolvedPath, 'utf8');
+  return parseConfigFile(raw, resolvedPath);
+}
+
 function parseArgs(argv: string[]): SimulationCliConfig {
   const args: SimulationCliConfig = {
-    ...DEFAULT_CONFIG,
+    ...getDefaultConfig(),
     sweep: false,
     replayPath: null,
     recordJsonPath: null,
@@ -52,25 +119,38 @@ function parseArgs(argv: string[]): SimulationCliConfig {
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
-    if (token === '--ticks') {
-      args.ticks = Number(argv[++index]);
+    if (token === '--config') {
+      const configPath = argv[++index];
+      if (!configPath) {
+        throw new Error('Missing value for --config');
+      }
+      applyConfigOverrides(args, loadConfigOverrides(configPath));
+    }
+  }
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (token === '--config') {
+      index += 1;
+    } else if (token === '--ticks') {
+      args.world.ticks = Number(argv[++index]);
     } else if (token === '--size') {
-      args.size = Number(argv[++index]);
+      args.world.size = Number(argv[++index]);
     } else if (token === '--seed') {
-      args.seed = String(argv[++index]);
+      args.world.seed = String(argv[++index]);
     } else if (token === '--plants') {
-      args.initialPlants = Number(argv[++index]);
+      args.plants.initialCount = Number(argv[++index]);
     } else if (token === '--herbivores') {
-      args.initialHerbivores = Number(argv[++index]);
+      args.insects.herbivores.initialCount = Number(argv[++index]);
     } else if (token === '--carnivores') {
-      args.initialCarnivores = Number(argv[++index]);
+      args.insects.carnivores.initialCount = Number(argv[++index]);
     } else if (token === '--lid') {
       const mode = String(argv[++index]).toLowerCase();
-      args.lidOpen = mode === 'open';
+      args.world.lidOpen = mode === 'open';
     } else if (token === '--day-ticks') {
-      args.dayTicks = Number(argv[++index]);
+      args.climate.dayTicks = Number(argv[++index]);
     } else if (token === '--night-ticks') {
-      args.nightTicks = Number(argv[++index]);
+      args.climate.nightTicks = Number(argv[++index]);
     } else if (token === '--sweep') {
       args.sweep = true;
     } else if (token === '--record-json') {
@@ -150,7 +230,7 @@ function writeCsv(result: SimulationResult, filePath: string): void {
       result.initialState.insects,
       result.initialState.avgWater,
       result.initialState.drinkableCells,
-    ].join(',')
+    ].join(','),
   );
 
   for (let index = 0; index < result.history.length; index += 1) {
@@ -168,7 +248,7 @@ function writeCsv(result: SimulationResult, filePath: string): void {
         snapshot.insects,
         snapshot.avgWater,
         snapshot.drinkableCells,
-      ].join(',')
+      ].join(','),
     );
   }
 
@@ -182,7 +262,11 @@ function resolveJsonOutputPath(filePath: string, compressed: boolean): string {
   return filePath.endsWith('.gz') ? filePath : `${filePath}.gz`;
 }
 
-function writeJsonRecording(result: SimulationResult, filePath: string, compressed = true): string {
+function writeJsonRecording(
+  result: SimulationResult,
+  filePath: string,
+  compressed = true,
+): string {
   const resolvedPath = resolveJsonOutputPath(filePath, compressed);
   ensureParentDir(resolvedPath);
   const payload: ReplayRecording = {
@@ -204,7 +288,9 @@ function writeJsonRecording(result: SimulationResult, filePath: string, compress
 
 function loadReplay(filePath: string): ReplayRecording {
   const buffer = fs.readFileSync(filePath);
-  const raw = filePath.endsWith('.gz') ? zlib.gunzipSync(buffer).toString('utf8') : buffer.toString('utf8');
+  const raw = filePath.endsWith('.gz')
+    ? zlib.gunzipSync(buffer).toString('utf8')
+    : buffer.toString('utf8');
   const parsed = JSON.parse(raw) as ReplayRecording;
   if (!parsed || !parsed.replay || !Array.isArray(parsed.replay.frames)) {
     throw new Error('Invalid replay file: expected replay.frames array');
@@ -250,7 +336,9 @@ function resolveReplayPath(replayPath: string | null): string {
     return latest;
   }
 
-  throw new Error('No replay JSON found. Run: npm run simulate (or use --record-json <path>) before replay.');
+  throw new Error(
+    'No replay JSON found. Run: npm run simulate (or use --record-json <path>) before replay.',
+  );
 }
 
 function terrainChar(value: number): string {
@@ -270,7 +358,7 @@ function terrainEmoji(value: number): string {
 function resolveReplayViewport(
   config: SimulationCliConfig,
   emojiMode: boolean,
-  worldSize: number
+  worldSize: number,
 ): { width: number; height: number } {
   if (config.nativeSize) {
     return { width: worldSize, height: worldSize };
@@ -279,7 +367,12 @@ function resolveReplayViewport(
   const baseWidth = Math.max(24, config.previewWidth);
   const baseHeight = Math.max(10, config.previewHeight);
 
-  if (config.autoFit && emojiMode && !config.previewWidthSet && !config.previewHeightSet) {
+  if (
+    config.autoFit &&
+    emojiMode &&
+    !config.previewWidthSet &&
+    !config.previewHeightSet
+  ) {
     return { width: 40, height: 12 };
   }
 
@@ -295,7 +388,7 @@ function renderFrame(
     isPlaying?: boolean;
     fps?: number;
     emojiMode?: boolean;
-  } = {}
+  } = {},
 ): void {
   const replay = replayPayload.replay;
   const frame = replay.frames[frameIndex];
@@ -333,19 +426,23 @@ function renderFrame(
   lines.push(
     `Tick ${String(frame.tick).padStart(3)} / ${replay.frames.length - 1}   ` +
       `O2=${frame.o2.toFixed(2)} CO2=${frame.co2.toFixed(2)}   ` +
-      `P=${frame.plants.length} H=${frame.herbivores.length} C=${frame.carnivores.length}`
+      `P=${frame.plants.length} H=${frame.herbivores.length} C=${frame.carnivores.length}`,
   );
   lines.push(
     useEmoji
       ? 'Legend: 🟫 soil  🟦 water  🟨 sand  ⬛ empty  🌿 plant  🐛 herbivore  🦂 carnivore  🥚 egg'
-      : 'Legend: . soil  ~ water  : sand  [space] empty  * plant  h herbivore  C carnivore  o egg'
+      : 'Legend: . soil  ~ water  : sand  [space] empty  * plant  h herbivore  C carnivore  o egg',
   );
-  lines.push(`Playback: ${playback.isPlaying ? 'auto' : 'manual'} @ ${playback.fps ?? 4} fps`);
+  lines.push(
+    `Playback: ${playback.isPlaying ? 'auto' : 'manual'} @ ${playback.fps ?? 4} fps`,
+  );
   lines.push(`Render mode: ${useEmoji ? 'emoji' : 'ascii'}`);
   lines.push(
-    `Board view: ${width}x${height} ${width === size && height === size ? '(native)' : `(sampled from ${size}x${size})`}`
+    `Board view: ${width}x${height} ${width === size && height === size ? '(native)' : `(sampled from ${size}x${size})`}`,
   );
-  lines.push('Controls: Left/Right step, Space autoplay, Up/Down speed, Home/End jump, e mode, n viewport, q quits.');
+  lines.push(
+    'Controls: Left/Right step, Space autoplay, Up/Down speed, Home/End jump, e mode, n viewport, q quits.',
+  );
   lines.push('');
 
   for (let py = 0; py < height; py += 1) {
@@ -360,7 +457,11 @@ function renderFrame(
     lines.push('  - none');
   } else {
     const maxEvents = 8;
-    for (let index = 0; index < Math.min(maxEvents, tickEvents.length); index += 1) {
+    for (
+      let index = 0;
+      index < Math.min(maxEvents, tickEvents.length);
+      index += 1
+    ) {
       lines.push(`  - ${tickEvents[index]}`);
     }
     if (tickEvents.length > maxEvents) {
@@ -376,7 +477,9 @@ function renderFrame(
 
   for (let index = startTickIndex; index < frameIndex; index += 1) {
     const historyFrame = replay.frames[index];
-    const historyEvents = Array.isArray(historyFrame.events) ? historyFrame.events : [];
+    const historyEvents = Array.isArray(historyFrame.events)
+      ? historyFrame.events
+      : [];
     if (historyEvents.length === 0) {
       continue;
     }
@@ -384,7 +487,9 @@ function renderFrame(
     historyPrinted = true;
     const preview = historyEvents.slice(0, 3).join(' | ');
     const suffix = historyEvents.length > 3 ? ' | ...' : '';
-    lines.push(`  t=${String(historyFrame.tick).padStart(3)}: ${preview}${suffix}`);
+    lines.push(
+      `  t=${String(historyFrame.tick).padStart(3)}: ${preview}${suffix}`,
+    );
   }
 
   if (!historyPrinted) {
@@ -405,7 +510,7 @@ function startReplayInteractive(
     nativeSize?: boolean;
     autoFit?: boolean;
     fps?: number;
-  } = {}
+  } = {},
 ): void {
   let index = 0;
   let isPlaying = Boolean(options.autoplay);
@@ -435,8 +540,12 @@ function startReplayInteractive(
       return;
     }
 
-    renderWidth = emojiMode ? sampledEmojiViewport.width : sampledAsciiViewport.width;
-    renderHeight = emojiMode ? sampledEmojiViewport.height : sampledAsciiViewport.height;
+    renderWidth = emojiMode
+      ? sampledEmojiViewport.width
+      : sampledAsciiViewport.width;
+    renderHeight = emojiMode
+      ? sampledEmojiViewport.height
+      : sampledAsciiViewport.height;
   };
 
   updateViewport();
@@ -472,7 +581,7 @@ function startReplayInteractive(
         index += 1;
         draw();
       },
-      Math.round(1000 / fps)
+      Math.round(1000 / fps),
     );
   };
 
@@ -573,8 +682,13 @@ function collectRunDiagnostics(result: SimulationResult): {
   maxEggs: number;
 } {
   const history = Array.isArray(result.history) ? result.history : [];
-  const eggFramesAfter10 = history.filter((snapshot) => snapshot.tick >= 10 && Number(snapshot.eggs || 0) > 0).length;
-  const maxEggs = history.reduce((max, snapshot) => Math.max(max, Number(snapshot.eggs || 0)), 0);
+  const eggFramesAfter10 = history.filter(
+    (snapshot) => snapshot.tick >= 10 && Number(snapshot.eggs || 0) > 0,
+  ).length;
+  const maxEggs = history.reduce(
+    (max, snapshot) => Math.max(max, Number(snapshot.eggs || 0)),
+    0,
+  );
 
   return {
     eggFramesAfter10,
@@ -597,7 +711,9 @@ function printRun(result: SimulationResult): void {
 
   console.log('Simulation summary');
   console.log('------------------');
-  console.log(`Outcome: ${result.outcome.type.toUpperCase()} (${result.outcome.reason})`);
+  console.log(
+    `Outcome: ${result.outcome.type.toUpperCase()} (${result.outcome.reason})`,
+  );
   console.log(`Final tick: ${result.finalTick}`);
   console.log(`O2: ${start.o2} -> ${end.o2}`);
   console.log(`CO2: ${start.co2} -> ${end.co2}`);
@@ -607,13 +723,17 @@ function printRun(result: SimulationResult): void {
   console.log(`Avg water: ${start.avgWater} -> ${end.avgWater}`);
   console.log('Diagnostics');
   console.log('-----------');
-  console.log(`Births H/C: ${diagnostics.herbivoreBirths ?? 0} / ${diagnostics.carnivoreBirths ?? 0}`);
-  console.log(`Deaths H/C: ${diagnostics.herbivoreDeaths ?? 0} / ${diagnostics.carnivoreDeaths ?? 0}`);
   console.log(
-    `Predation kills: ${diagnostics.herbivoreKillsByCarnivores ?? 0} (rival carnivore kills: ${diagnostics.carnivoreKillsByCarnivores ?? 0})`
+    `Births H/C: ${diagnostics.herbivoreBirths ?? 0} / ${diagnostics.carnivoreBirths ?? 0}`,
   );
   console.log(
-    `Egg visibility: frames>=10 with eggs=${derived.eggFramesAfter10}, max eggs in a tick=${derived.maxEggs}`
+    `Deaths H/C: ${diagnostics.herbivoreDeaths ?? 0} / ${diagnostics.carnivoreDeaths ?? 0}`,
+  );
+  console.log(
+    `Predation kills: ${diagnostics.herbivoreKillsByCarnivores ?? 0} (rival carnivore kills: ${diagnostics.carnivoreKillsByCarnivores ?? 0})`,
+  );
+  console.log(
+    `Egg visibility: frames>=10 with eggs=${derived.eggFramesAfter10}, max eggs in a tick=${derived.maxEggs}`,
   );
 }
 
@@ -631,7 +751,8 @@ function runSweep(baseConfig: SimulationConfig): void {
   }> = [];
 
   for (let index = 0; index < seeds.length; index += 1) {
-    const config = { ...baseConfig, seed: seeds[index] };
+    const config = structuredClone(baseConfig);
+    config.world.seed = seeds[index];
     const result = runSimulation(config);
     rows.push({
       seed: seeds[index],
@@ -652,7 +773,7 @@ function runSweep(baseConfig: SimulationConfig): void {
     console.log(
       `${row.seed.padEnd(8)} outcome=${row.outcome.padEnd(4)} tick=${String(row.tick).padEnd(3)} ` +
         `plants=${String(row.plants).padEnd(5)} insects=${String(row.insects).padEnd(5)} ` +
-        `o2=${String(row.o2).padEnd(6)} co2=${String(row.co2).padEnd(6)} reason=${row.reason}`
+        `o2=${String(row.o2).padEnd(6)} co2=${String(row.co2).padEnd(6)} reason=${row.reason}`,
     );
   }
 }
@@ -663,7 +784,11 @@ function main(): void {
   if (config.replayPath) {
     const replayFilePath = resolveReplayPath(config.replayPath);
     const replayPayload = loadReplay(replayFilePath);
-    const viewport = resolveReplayViewport(config, config.emojiMode, replayPayload.replay.size);
+    const viewport = resolveReplayViewport(
+      config,
+      config.emojiMode,
+      replayPayload.replay.size,
+    );
     console.log(`Replay file: ${replayFilePath}`);
     startReplayInteractive(replayPayload, viewport.width, viewport.height, {
       autoplay: config.autoplay,
@@ -690,7 +815,11 @@ function main(): void {
   }
 
   if (config.recordJsonPath) {
-    const writtenPath = writeJsonRecording(result, config.recordJsonPath, config.recordJsonCompressed);
+    const writtenPath = writeJsonRecording(
+      result,
+      config.recordJsonPath,
+      config.recordJsonCompressed,
+    );
     console.log(`Replay JSON written: ${writtenPath}`);
   }
 }

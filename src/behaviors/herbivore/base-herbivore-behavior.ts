@@ -1,6 +1,6 @@
 import type { SimContext } from '../../context';
 import type { InsectBehaviorStrategy } from '../behavior';
-import type { Herbivore } from '../../entities/herbivore';
+import type { Herbivore } from '@/entities/insects';
 import { clamp } from '../../math';
 
 export class BaseHerbivoreBehavior implements InsectBehaviorStrategy<Herbivore> {
@@ -14,6 +14,7 @@ export class BaseHerbivoreBehavior implements InsectBehaviorStrategy<Herbivore> 
 
   tick(entity: Herbivore, ctx: SimContext): void {
     const { world, config, rng } = ctx;
+    const breedConfig = config.insects.herbivores.breed;
 
     const targetPlant = entity.findNearestPlant(this.plantSearchRadius, ctx);
     if (targetPlant >= 0) {
@@ -40,19 +41,19 @@ export class BaseHerbivoreBehavior implements InsectBehaviorStrategy<Herbivore> 
       .neighbors8(entity.cell)
       .filter((cell) => ctx.herbivores.some((h) => h.alive && h.cell === cell && h.id !== entity.id)).length;
     const liveHerbivores = ctx.herbivores.filter((h) => h.alive).length;
-    const herbivoreGlobalCap = Math.max(1, Math.floor(ctx.plants.size * config.herbivorePopulationCapPerPlant));
+    const herbivoreGlobalCap = Math.max(1, Math.floor(ctx.plants.size * breedConfig.populationCapPerPlant));
 
     if (
-      entity.energy >= config.herbivoreBreedEnergyMin &&
+      entity.energy >= breedConfig.energyMin &&
       entity.cooldown <= 0 &&
-      localHerbivores < config.herbivoreBreedLocalCap &&
+      localHerbivores < breedConfig.localCap &&
       liveHerbivores < herbivoreGlobalCap &&
-      rng.chance(config.herbivoreBreedChance)
+      rng.chance(breedConfig.chance)
     ) {
       const spawnCell = entity.findSpawnCell(ctx);
       if (spawnCell >= 0) {
-        entity.energy -= config.herbivoreBreedEnergyCost;
-        entity.cooldown = config.herbivoreBreedCooldown;
+        entity.energy -= breedConfig.energyCost;
+        entity.cooldown = breedConfig.cooldown;
         const child = entity.spawnOffspring(ctx, spawnCell);
         ctx.herbivores.push(child);
         ctx.occupied.add(spawnCell);

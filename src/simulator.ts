@@ -2,12 +2,12 @@ import type { SimulationConfig } from './config';
 import type { SimContext, TickStats } from './context';
 import { createRng, type Rng } from './rng';
 import { TERRAIN, World } from './world';
-import { Plant } from './entities/plant';
+import { Plant } from './entities/plants/plant';
 // Species imports trigger self-registration in insectRegistry
-import './entities/herbivore';
-import './entities/carnivore';
+import './entities/insects/herbivore';
+import './entities/insects/carnivore';
 import { EntityRepository } from './entities/repository';
-import { insectRegistry } from './entities/insect-registry';
+import { insectRegistry } from './entities/insects/insect-registry';
 import { formatSimulationEvent, type SimulationEvent } from './events';
 
 export interface Snapshot {
@@ -90,8 +90,8 @@ class Simulator {
 
   constructor(config: SimulationConfig) {
     this.config = config;
-    this.rng = createRng(config.seed);
-    this.world = new World(config.size, this.rng);
+    this.rng = createRng(config.world.seed);
+    this.world = new World(config.world.size, this.rng);
 
     this.tick = 0;
     this.day = true;
@@ -122,7 +122,7 @@ class Simulator {
   }
 
   seedInitialPopulation(): void {
-    for (let index = 0; index < this.config.initialPlants; index += 1) {
+    for (let index = 0; index < this.config.plants.initialCount; index += 1) {
       const cell = this.world.randomCell(
         (candidate) =>
           this.world.isSoil(candidate) && !this.entities.plants.has(candidate),
@@ -170,7 +170,7 @@ class Simulator {
     const initialState = this.snapshot();
     const frames = captureFrames ? [this.buildReplayFrame(initialState)] : null;
 
-    while (!this.outcome && this.tick < this.config.ticks) {
+    while (!this.outcome && this.tick < this.config.world.ticks) {
       this.step();
       if (captureFrames && frames) {
         frames.push(
@@ -179,10 +179,10 @@ class Simulator {
       }
     }
 
-    if (!this.outcome && this.tick >= this.config.ticks) {
+    if (!this.outcome && this.tick >= this.config.world.ticks) {
       this.outcome = {
         type: 'win',
-        reason: `survived ${this.config.ticks} ticks`,
+        reason: `survived ${this.config.world.ticks} ticks`,
       };
     }
 
@@ -276,13 +276,13 @@ class Simulator {
   }
 
   getCurrentLight(): number {
-    return this.day ? (this.config.lidOpen ? 100 : 50) : 0;
+    return this.day ? (this.config.world.lidOpen ? 100 : 50) : 0;
   }
 
   advanceDayNightPhase(): void {
     const phaseLength = this.day
-      ? this.config.dayTicks
-      : this.config.nightTicks;
+      ? this.config.climate.dayTicks
+      : this.config.climate.nightTicks;
     const safePhaseLength = Math.max(1, Number(phaseLength) || 1);
     this.phaseTicksElapsed += 1;
 
@@ -480,25 +480,26 @@ class Simulator {
   }
 
   processWeatherAndCellResources(): void {
+    const { biome, climate, world } = this.config;
     let rainEvents = 0;
     let droughtEvents = 0;
 
     for (let index = 0; index < this.world.length; index += 1) {
-      if (this.rng.chance(this.config.rainChance)) {
-        this.world.water[index] += this.config.rainAmount;
+      if (this.rng.chance(climate.rainChance)) {
+        this.world.water[index] += climate.rainAmount;
         rainEvents += 1;
       }
-      if (this.rng.chance(this.config.droughtChance)) {
-        this.world.water[index] -= this.config.droughtAmount;
+      if (this.rng.chance(climate.droughtChance)) {
+        this.world.water[index] -= climate.droughtAmount;
         droughtEvents += 1;
       }
 
-      if (this.config.lidOpen) {
-        this.world.water[index] -= this.config.evaporationOpen;
+      if (world.lidOpen) {
+        this.world.water[index] -= climate.evaporationOpen;
       }
 
       if (this.world.terrain[index] === TERRAIN.WATER) {
-        this.world.water[index] += this.config.moistureSeepageFromWater;
+        this.world.water[index] += biome.moistureSeepageFromWater;
       } else {
         const waterNeighbors = this.world
           .neighbors4(index)
@@ -507,7 +508,7 @@ class Simulator {
           ).length;
         if (waterNeighbors > 0) {
           this.world.water[index] +=
-            waterNeighbors * this.config.moistureSeepageFromAdjacentWater;
+            waterNeighbors * biome.moistureSeepageFromAdjacentWater;
         }
       }
 
@@ -526,6 +527,7 @@ class Simulator {
   }
 
   updateGlobalGases(light: number): void {
+    const { climate } = this.config;
     const plantCount = this.entities.plants.size;
     const insects = this.countLiveInsects();
 
@@ -533,13 +535,13 @@ class Simulator {
     const scaledPlantFlux = 2 * (plantCount / 10) * photosynthesisFactor;
     const scaledInsectFlux = 1 * (insects / 10);
 
-    this.o2 += (scaledPlantFlux - scaledInsectFlux) * this.config.gasFluxScale;
+    this.o2 += (scaledPlantFlux - scaledInsectFlux) * climate.gasFluxScale;
     this.co2 +=
       (-1 * (plantCount / 10) * photosynthesisFactor + scaledInsectFlux) *
-      this.config.gasFluxScale;
+      climate.gasFluxScale;
 
-    this.o2 += (50 - this.o2) * this.config.gasMidpointPull;
-    this.co2 += (50 - this.co2) * this.config.gasMidpointPull;
+    this.o2 += (50 - this.o2) * climate.gasMidpointPull;
+    this.co2 += (50 - this.co2) * climate.gasMidpointPull;
 
     this.o2 = clamp(this.o2, 0, 100);
     this.co2 = clamp(this.co2, 0, 100);

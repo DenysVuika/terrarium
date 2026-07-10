@@ -1,7 +1,5 @@
-import type { Insect } from './insect';
-import type { Plant } from './plant';
-import type { Herbivore } from './herbivore';
-import type { Carnivore } from './carnivore';
+import type { Plant } from '@/entities/plants';
+import type { Carnivore, Herbivore, Insect } from '@/entities/insects';
 
 /**
  * Central storage and utility operations for all entity collections.

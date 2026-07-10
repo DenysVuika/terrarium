@@ -1,5 +1,5 @@
-import type { SimulationConfig } from '../config';
-import type { Rng } from '../rng';
+import type { SimulationConfig } from '../../config';
+import type { Rng } from '../../rng';
 import type { Insect } from './insect';
 
 /**
@@ -10,12 +10,12 @@ import type { Insect } from './insect';
  *
  * @example
  * ```ts
- * // src/entities/decomposer.ts (at the bottom, after the class definition)
+ * // src/entities/insects/decomposer.ts (at the bottom, after the class definition)
  * insectRegistry.register({
  *   kind: 'decomposer',
  *   behaviorIds: DECOMPOSER_BEHAVIOR_IDS,
  *   seedEnergyRange: [5, 10],
- *   initialCount: (config) => config.initialDecomposers ?? 0,
+ *   initialCount: (config) => config.insects.decomposers?.initialCount ?? 0,
  *   create: (id, cell, energy, config, behaviorId) =>
  *     new Decomposer(id, cell, energy, config, behaviorId),
  * });
