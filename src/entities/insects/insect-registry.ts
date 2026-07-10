@@ -15,7 +15,7 @@ import type { Insect } from './insect';
  *   kind: 'decomposer',
  *   behaviorIds: DECOMPOSER_BEHAVIOR_IDS,
  *   seedEnergyRange: [5, 10],
- *   initialCount: (config) => config.initialDecomposers ?? 0,
+ *   initialCount: (config) => config.insects.decomposers?.initialCount ?? 0,
  *   create: (id, cell, energy, config, behaviorId) =>
  *     new Decomposer(id, cell, energy, config, behaviorId),
  * });

@@ -76,11 +76,12 @@ export abstract class Insect extends Entity {
 
   protected tickLifecycle(ctx: SimContext): void {
     const { world, config } = ctx;
+    const insectConfig = config.insects;
 
     this.age += 1;
     this.stageTicks += 1;
 
-    const metabolismMultiplier = ctx.day ? 1 : config.nightMetabolismMultiplier;
+    const metabolismMultiplier = ctx.day ? 1 : config.climate.nightMetabolismMultiplier;
     this.energy -= this.metabolismPerTick * metabolismMultiplier;
 
     if (ctx.o2 < 10) {
@@ -91,7 +92,7 @@ export abstract class Insect extends Entity {
       this.cooldown -= 1;
     }
 
-    this.stepCharge = clamp(this.stepCharge + config.insectStepChargePerTick, 0, 2.5);
+    this.stepCharge = clamp(this.stepCharge + insectConfig.stepChargePerTick, 0, 2.5);
 
     this.tickExtraLifecycle(ctx);
 
@@ -105,12 +106,12 @@ export abstract class Insect extends Entity {
 
     const waterNeighbors = world
       .neighbors8(this.cell)
-      .filter((neighbor) => world.water[neighbor] >= config.insectDrinkAmount);
+      .filter((neighbor) => world.water[neighbor] >= insectConfig.drinkAmount);
 
     if (waterNeighbors.length > 0) {
       const drinkCell = ctx.rng.pick(waterNeighbors);
       if (drinkCell !== null) {
-        world.water[drinkCell] = clamp(world.water[drinkCell] - config.insectDrinkAmount, 0, 100);
+        world.water[drinkCell] = clamp(world.water[drinkCell] - insectConfig.drinkAmount, 0, 100);
       }
     } else {
       this.energy -= this.dehydrationPenalty;
@@ -183,7 +184,7 @@ export abstract class Insect extends Entity {
   protected tryMove(targetCell: number, ctx: SimContext): boolean {
     const { world, config } = ctx;
     const terrain = world.terrain[targetCell];
-    const stepCost = terrain === TERRAIN.SAND ? config.sandStepCost : 1;
+    const stepCost = terrain === TERRAIN.SAND ? config.insects.sandStepCost : 1;
 
     if (this.stepCharge < stepCost) return false;
 

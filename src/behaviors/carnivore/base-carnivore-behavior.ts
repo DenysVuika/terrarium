@@ -16,9 +16,11 @@ export class BaseCarnivoreBehavior implements InsectBehaviorStrategy<Carnivore> 
 
   tick(entity: Carnivore, ctx: SimContext): void {
     const { world, config, rng } = ctx;
-    const huntRadius = Math.max(1, config.carnivoreHuntRadius + this.huntRadiusDelta);
-    const restChance = Math.max(0, Math.min(1, config.carnivoreRestChanceNoPrey * this.restChanceScale));
-    const rivalFightChance = Math.max(0, Math.min(1, config.carnivoreRivalFightChance * this.rivalFightChanceScale));
+    const carnivoreConfig = config.insects.carnivores;
+    const breedConfig = carnivoreConfig.breed;
+    const huntRadius = Math.max(1, carnivoreConfig.huntRadius + this.huntRadiusDelta);
+    const restChance = Math.max(0, Math.min(1, carnivoreConfig.restChanceNoPrey * this.restChanceScale));
+    const rivalFightChance = Math.max(0, Math.min(1, carnivoreConfig.rivalFightChance * this.rivalFightChanceScale));
 
     let attackUsed = false;
     let chaseUsed = false;
@@ -30,7 +32,7 @@ export class BaseCarnivoreBehavior implements InsectBehaviorStrategy<Carnivore> 
       entity.ap -= 3;
       const prey = rng.pick(adjacentHerbivores);
 
-      if (prey && rng.chance(config.carnivorePreyFleeChance)) {
+      if (prey && rng.chance(carnivoreConfig.preyFleeChance)) {
         prey.energy -= 1;
         prey.fleeFrom(entity.cell, ctx);
         if (!chaseUsed) {
@@ -38,12 +40,12 @@ export class BaseCarnivoreBehavior implements InsectBehaviorStrategy<Carnivore> 
           entity.moveToward(prey.cell, ctx);
         }
       } else if (prey) {
-        prey.energy -= config.carnivoreAttackDamage;
+        prey.energy -= carnivoreConfig.attackDamage;
         if (prey.energy <= 0) {
           prey.alive = false;
           ctx.occupied.delete(prey.cell);
           world.nutrients[prey.cell] = clamp(world.nutrients[prey.cell] + 20, 0, 300);
-          entity.energy += config.carnivoreKillEnergyGain;
+          entity.energy += carnivoreConfig.killEnergyGain;
           entity.ap = clamp(entity.ap + 5, 0, 10);
           ctx.stats.herbivoreDeaths += 1;
           ctx.stats.herbivoreKillsByCarnivores += 1;
@@ -56,7 +58,7 @@ export class BaseCarnivoreBehavior implements InsectBehaviorStrategy<Carnivore> 
       if (targetHerbivore) {
         entity.moveToward(targetHerbivore.cell, ctx);
       } else if (rng.chance(restChance)) {
-        entity.energy += config.carnivoreRestEnergyRecovery;
+        entity.energy += carnivoreConfig.restEnergyRecovery;
       } else {
         entity.moveRandom(ctx);
       }
@@ -70,7 +72,7 @@ export class BaseCarnivoreBehavior implements InsectBehaviorStrategy<Carnivore> 
       !attackUsed &&
       adjacentCarnivores.length > 0 &&
       entity.ap >= 3 &&
-      entity.energy >= config.carnivoreRivalFightEnergyMin &&
+      entity.energy >= carnivoreConfig.rivalFightEnergyMin &&
       rng.chance(rivalFightChance)
     ) {
       attackUsed = true;
@@ -100,19 +102,19 @@ export class BaseCarnivoreBehavior implements InsectBehaviorStrategy<Carnivore> 
       ).length;
     const liveCarnivores = ctx.carnivores.filter((c) => c.alive).length;
     const liveHerbivores = ctx.herbivores.filter((h) => h.alive).length;
-    const carnivoreGlobalCap = Math.max(1, Math.floor(liveHerbivores * config.carnivorePopulationCapPerHerbivore));
+    const carnivoreGlobalCap = Math.max(1, Math.floor(liveHerbivores * breedConfig.populationCapPerHerbivore));
 
     if (
-      entity.energy >= config.carnivoreBreedEnergyMin &&
+      entity.energy >= breedConfig.energyMin &&
       entity.cooldown <= 0 &&
-      localCarnivores < config.carnivoreBreedLocalCap &&
+      localCarnivores < breedConfig.localCap &&
       liveCarnivores < carnivoreGlobalCap &&
-      rng.chance(config.carnivoreBreedChance)
+      rng.chance(breedConfig.chance)
     ) {
       const spawnCell = entity.findSpawnCell(ctx);
       if (spawnCell >= 0) {
-        entity.energy -= config.carnivoreBreedEnergyCost;
-        entity.cooldown = config.carnivoreBreedCooldown;
+        entity.energy -= breedConfig.energyCost;
+        entity.cooldown = breedConfig.cooldown;
         entity.ap = 0;
         const child = entity.spawnOffspring(ctx, spawnCell);
         ctx.carnivores.push(child);

@@ -32,6 +32,7 @@ export class Plant extends Entity {
 
   tick(ctx: SimContext): Plant | null {
     const { world, config, rng } = ctx;
+    const plantConfig = config.plants;
 
     const drain = nutrientDrainByGrowth(this.growth);
     world.nutrients[this.cell] = clamp(
@@ -55,7 +56,7 @@ export class Plant extends Entity {
         }
       }
     } else if (ctx.light === 0 && hasResources) {
-      this.growth = clamp(this.growth - config.plantNightShrink, 0, 100);
+      this.growth = clamp(this.growth - plantConfig.nightShrink, 0, 100);
       this.recoverTicks = 0;
     } else {
       if (this.growth < 10) {
@@ -67,7 +68,7 @@ export class Plant extends Entity {
         );
         return null;
       }
-      this.growth = clamp(this.growth - config.plantStressShrink, 0, 100);
+      this.growth = clamp(this.growth - plantConfig.stressShrink, 0, 100);
       this.wilted = true;
       this.recoverTicks = 0;
     }
@@ -76,7 +77,7 @@ export class Plant extends Entity {
     if (
       this.growth >= 80 &&
       world.nutrients[this.cell] > 50 &&
-      rng.chance(config.plantReproductionChance)
+      rng.chance(plantConfig.reproductionChance)
     ) {
       const options = world
         .neighbors4(this.cell)

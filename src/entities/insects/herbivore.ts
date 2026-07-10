@@ -14,7 +14,13 @@ export class Herbivore extends Insect {
   private readonly behavior: InsectBehaviorStrategy<Herbivore>;
   private readonly _config: SimulationConfig;
 
-  constructor(id: string, cell: number, energy: number, config: SimulationConfig, behaviorId: HerbivoreBehaviorId) {
+  constructor(
+    id: string,
+    cell: number,
+    energy: number,
+    config: SimulationConfig,
+    behaviorId: HerbivoreBehaviorId,
+  ) {
     super('herbivore', id, cell, energy);
     this._config = config;
     this.behaviorId = behaviorId;
@@ -32,25 +38,25 @@ export class Herbivore extends Insect {
   }
 
   protected get eggStageTicks(): number {
-    return this._config.eggStageTicks;
+    return this._config.insects.herbivores.eggStageTicks;
   }
   protected get larvaStageTicks(): number {
-    return this._config.larvaStageTicks;
+    return this._config.insects.herbivores.larvaStageTicks;
   }
   protected get maxAge(): number {
-    return this._config.herbivoreMaxAge;
+    return this._config.insects.herbivores.maxAge;
   }
   protected get starvationLimit(): number {
-    return this._config.herbivoreStarvationTicks;
+    return this._config.insects.herbivores.starvationTicks;
   }
   protected get metabolismPerTick(): number {
-    return this._config.herbivoreMetabolismPerTick;
+    return this._config.insects.herbivores.metabolismPerTick;
   }
   protected get dehydrationPenalty(): number {
-    return this._config.herbivoreDehydrationPenalty;
+    return this._config.insects.herbivores.dehydrationPenalty;
   }
   protected get moveEnergyCost(): number {
-    return this._config.herbivoreMoveEnergyCost;
+    return this._config.insects.herbivores.moveEnergyCost;
   }
 
   protected onDeath(ctx: SimContext): void {
@@ -59,7 +65,9 @@ export class Herbivore extends Insect {
 
   /** Bias random movement toward cells with nearby plants. */
   protected extraMoveBias(cell: number, ctx: SimContext): number {
-    return ctx.world.neighbors8(cell).filter((c) => ctx.plants.has(c)).length * 0.7;
+    return (
+      ctx.world.neighbors8(cell).filter((c) => ctx.plants.has(c)).length * 0.7
+    );
   }
 
   protected tickBehavior(ctx: SimContext): void {
@@ -71,7 +79,7 @@ insectRegistry.register({
   kind: 'herbivore',
   behaviorIds: HERBIVORE_BEHAVIOR_IDS,
   seedEnergyRange: [6, 12],
-  initialCount: (config) => config.initialHerbivores,
+  initialCount: (config) => config.insects.herbivores.initialCount,
   create: (id, cell, energy, config, behaviorId) =>
     new Herbivore(id, cell, energy, config, behaviorId as HerbivoreBehaviorId),
 });

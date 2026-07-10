@@ -174,7 +174,7 @@
 
 ### **6. Game Loop (Per Tick)**
 
-1. **Day/Night Cycle**: Day and night each span configurable tick windows (`dayTicks` / `nightTicks`).
+1. **Day/Night Cycle**: Day and night each span configurable tick windows (`climate.dayTicks` / `climate.nightTicks`).
 2. **Weather**: Roll for rain/drought.
 3. **Resource Regeneration**: Soil +0.1 nutrients/cell, and water updates from weather + evaporation + seepage.
 4. **Entity Actions**:
@@ -420,12 +420,11 @@ The simulator uses baseline defaults from `src/config.ts` and then applies CLI o
   2. CLI flags passed to `pnpm simulate ...`
 
 - Common tuning groups:
-  - **World/Time**: `size`, `ticks`, `seed`, `lidOpen`, `dayTicks`, `nightTicks`
-  - **Plants**: `plantReproductionChance`, `plantNightShrink`, `plantStressShrink`
-  - **Water/Weather**: `rainChance`, `rainAmount`, `droughtChance`, `droughtAmount`, `evaporationOpen`, seepage settings
-  - **Herbivores**: lifecycle stage ticks, metabolism/dehydration, movement cost, reproduction gates/caps, starvation/age limits
-  - **Carnivores**: hunt/combat values, rest behavior, movement/AP strain, reproduction gates/caps, starvation/age limits
-  - **Global Balance**: gas flux scaling and midpoint pull
+  - **World**: `world.size`, `world.ticks`, `world.seed`, `world.lidOpen`
+  - **Climate**: `climate.dayTicks`, `climate.nightTicks`, weather values, gas balancing, night metabolism multiplier
+  - **Biome**: seepage and terrain-adjacent moisture settings
+  - **Plants**: `plants.initialCount`, reproduction chance, and stress/dormancy shrink values
+  - **Insects**: shared drinking/movement settings plus species-specific trees under `insects.herbivores` and `insects.carnivores`
 
 - Practical workflow:
   1. Keep `src/config.ts` as the canonical baseline.
@@ -433,8 +432,8 @@ The simulator uses baseline defaults from `src/config.ts` and then applies CLI o
   3. Promote stable scenario values back into `src/config.ts` once validated.
 
 - Anti-overpopulation controls:
-  - Herbivores: `herbivoreBreedChance`, `herbivoreBreedCooldown`, `herbivoreBreedLocalCap`, `herbivorePopulationCapPerPlant`
-  - Carnivores: `carnivoreBreedChance`, `carnivoreBreedCooldown`, `carnivoreBreedLocalCap`, `carnivorePopulationCapPerHerbivore`
+  - Herbivores: `insects.herbivores.breed.chance`, `insects.herbivores.breed.cooldown`, `insects.herbivores.breed.localCap`, `insects.herbivores.breed.populationCapPerPlant`
+  - Carnivores: `insects.carnivores.breed.chance`, `insects.carnivores.breed.cooldown`, `insects.carnivores.breed.localCap`, `insects.carnivores.breed.populationCapPerHerbivore`
 
 ### **Behavior Profiles**
 

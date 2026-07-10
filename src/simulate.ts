@@ -33,7 +33,7 @@ type ReplayRecording = {
 
 function parseArgs(argv: string[]): SimulationCliConfig {
   const args: SimulationCliConfig = {
-    ...DEFAULT_CONFIG,
+    ...structuredClone(DEFAULT_CONFIG),
     sweep: false,
     replayPath: null,
     recordJsonPath: null,
@@ -53,24 +53,24 @@ function parseArgs(argv: string[]): SimulationCliConfig {
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
     if (token === '--ticks') {
-      args.ticks = Number(argv[++index]);
+      args.world.ticks = Number(argv[++index]);
     } else if (token === '--size') {
-      args.size = Number(argv[++index]);
+      args.world.size = Number(argv[++index]);
     } else if (token === '--seed') {
-      args.seed = String(argv[++index]);
+      args.world.seed = String(argv[++index]);
     } else if (token === '--plants') {
-      args.initialPlants = Number(argv[++index]);
+      args.plants.initialCount = Number(argv[++index]);
     } else if (token === '--herbivores') {
-      args.initialHerbivores = Number(argv[++index]);
+      args.insects.herbivores.initialCount = Number(argv[++index]);
     } else if (token === '--carnivores') {
-      args.initialCarnivores = Number(argv[++index]);
+      args.insects.carnivores.initialCount = Number(argv[++index]);
     } else if (token === '--lid') {
       const mode = String(argv[++index]).toLowerCase();
-      args.lidOpen = mode === 'open';
+      args.world.lidOpen = mode === 'open';
     } else if (token === '--day-ticks') {
-      args.dayTicks = Number(argv[++index]);
+      args.climate.dayTicks = Number(argv[++index]);
     } else if (token === '--night-ticks') {
-      args.nightTicks = Number(argv[++index]);
+      args.climate.nightTicks = Number(argv[++index]);
     } else if (token === '--sweep') {
       args.sweep = true;
     } else if (token === '--record-json') {
@@ -631,7 +631,8 @@ function runSweep(baseConfig: SimulationConfig): void {
   }> = [];
 
   for (let index = 0; index < seeds.length; index += 1) {
-    const config = { ...baseConfig, seed: seeds[index] };
+    const config = structuredClone(baseConfig);
+    config.world.seed = seeds[index];
     const result = runSimulation(config);
     rows.push({
       seed: seeds[index],

@@ -45,29 +45,29 @@ export class Carnivore extends Insect {
   }
 
   protected get eggStageTicks(): number {
-    return this._config.carnivoreEggStageTicks;
+    return this._config.insects.carnivores.eggStageTicks;
   }
   protected get larvaStageTicks(): number {
-    return this._config.carnivoreLarvaStageTicks;
+    return this._config.insects.carnivores.larvaStageTicks;
   }
   protected get maxAge(): number {
-    return this._config.carnivoreMaxAge;
+    return this._config.insects.carnivores.maxAge;
   }
   protected get starvationLimit(): number {
-    return this._config.carnivoreStarvationTicks;
+    return this._config.insects.carnivores.starvationTicks;
   }
   protected get metabolismPerTick(): number {
-    return this._config.carnivoreMetabolismPerTick;
+    return this._config.insects.carnivores.metabolismPerTick;
   }
   protected get dehydrationPenalty(): number {
-    return this._config.carnivoreDehydrationPenalty;
+    return this._config.insects.carnivores.dehydrationPenalty;
   }
   protected get moveEnergyCost(): number {
-    return this._config.carnivoreMoveEnergyCost;
+    return this._config.insects.carnivores.moveEnergyCost;
   }
 
   protected tickExtraLifecycle(ctx: SimContext): void {
-    this.ap = clamp(this.ap + ctx.config.carnivoreApRegenPerTick, 0, 10);
+    this.ap = clamp(this.ap + ctx.config.insects.carnivores.apRegenPerTick, 0, 10);
   }
 
   protected onAfterMove(targetCell: number, ctx: SimContext): void {
@@ -90,7 +90,7 @@ insectRegistry.register({
   kind: 'carnivore',
   behaviorIds: CARNIVORE_BEHAVIOR_IDS,
   seedEnergyRange: [10, 18],
-  initialCount: (config) => config.initialCarnivores,
+  initialCount: (config) => config.insects.carnivores.initialCount,
   create: (id, cell, energy, config, behaviorId) =>
     new Carnivore(id, cell, energy, config, behaviorId as CarnivoreBehaviorId),
   afterSeed: (insect, rng) => {
