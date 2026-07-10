@@ -1,0 +1,22 @@
+{
+  "name": "web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "pnpm run dev",
+    "build": "vite build",
+    "lint": "pnpm --workspace-root exec oxlint web/src",
+    "lint:fix": "pnpm --workspace-root exec oxlint --fix web/src",
+    "format": "pnpm --workspace-root exec oxfmt web/src web/index.html",
+    "format:check": "pnpm --workspace-root exec oxfmt --check web/src web/index.html",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "pixi.js": "^8.8.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vite": "^6.2.0"
+  }
+}

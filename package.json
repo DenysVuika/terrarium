@@ -26,6 +26,14 @@
     "lint:fix": "oxlint --fix src tests",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
+    "web:dev": "pnpm --filter ./web run dev",
+    "web:build": "pnpm --filter ./web run build",
+    "web:lint": "pnpm --filter ./web run lint",
+    "web:lint:fix": "pnpm --filter ./web run lint:fix",
+    "web:format": "pnpm --filter ./web run format",
+    "web:format:check": "pnpm --filter ./web run format:check",
+    "web:typecheck": "pnpm --filter ./web exec tsc --project tsconfig.json --noEmit",
+    "web:check": "pnpm web:typecheck && pnpm web:lint && pnpm web:build",
     "check": "pnpm typecheck && pnpm build && pnpm lint && pnpm test"
   },
   "devDependencies": {
