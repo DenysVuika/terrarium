@@ -1,7 +1,5 @@
 # 🌿 Terrarium Ecosystem Simulation
 
----
-
 ## **📌 Project Overview**
 
 **Goal**: Develop a **closed ecosystem simulation** (Terrarium) where **plants, herbivores, and carnivores** interact in a **2D grid world** (250x250 cells). The simulation must balance **resources (O₂, CO₂, water, nutrients)**, **entity lifecycles**, and **combat mechanics** while allowing for **player interaction** (e.g., toggling a lid).
@@ -17,8 +15,6 @@
 - **Player Actions**: Toggle lid (light/evaporation), add water/soil.
 
 ![Terrarium](assets/terrarium.png)
-
----
 
 ## **📜 Core Rules & Mechanics**
 
@@ -40,8 +36,6 @@
 
 **🔗 Diagram**: [Terrarium: Grid System](sandbox/terrarium-grid-system.md)
 
----
-
 ### **2. Plants**
 
 - **Stages**:
@@ -61,8 +55,6 @@
   - **Decay**: +50 nutrients to cell.
 
 **🔗 Diagram**: [Terrarium: Plants Lifecycle](sandbox/terrarium-plants-lifecycle.md)
-
----
 
 ### **3. Herbivores**
 
@@ -92,8 +84,6 @@
   - **Max age**: 320 ticks.
 
 **🔗 Diagram**: [Terrarium: Herbivore Insects Lifecycle](sandbox/terrarium-herbivore-insects-lifecycle.md)
-
----
 
 ### **4. Carnivores**
 
@@ -136,8 +126,6 @@
 
 **🔗 Diagram**: [Terrarium: Carnivore Insects Lifecycle](sandbox/terrarium-carnivore-insects-lifecycle.md)
 
----
-
 ### **5. Resources**
 
 #### **Global Pools**
@@ -170,8 +158,6 @@
 
 **🔗 Diagram**: [Terrarium: Resource Cycle](sandbox/terrarium-resource-cycle.md)
 
----
-
 ### **6. Game Loop (Per Tick)**
 
 1. **Day/Night Cycle**: Day and night each span configurable tick windows (`climate.dayTicks` / `climate.nightTicks`).
@@ -189,8 +175,6 @@
      - no water cell has water > 1 for 3 consecutive ticks, or
      - all plants die, or all insects die.
    - **Win**: Ecosystem survives 100 ticks.
-
----
 
 ### **7. Canonical Conflict-Resolution Rules (Prototype)**
 
@@ -216,8 +200,6 @@ Use this section as the source of truth if any diagram and prose disagree.
 | Water-loss condition           | Trigger only after 3 ticks with no cell above water > 1                                                       |
 
 **🔗 Diagram**: [Terrarium: Main Game Loop](sandbox/terrarium-main-game-loop.md)
-
----
 
 ## **🧭 Mechanics Clarity (Quick Read)**
 
@@ -265,8 +247,6 @@ Use this section as a fast guide to what is implemented now vs. what is design i
 - A `WIN` at tick 100 means survival constraints held, not that biodiversity is balanced.
 - Use diagnostics to inspect births/deaths and predation totals before changing tuning values.
 - Use replay timeline and recent event history to map sudden population drops to weather/combat/resource events.
-
----
 
 ## **🧪 Prototype Simulator (Node.js)**
 
@@ -615,8 +595,6 @@ Replay symbol legend:
   - Default output is gzip-compressed (`.json.gz`) to reduce file size.
   - Use `--record-json-plain` if you explicitly need uncompressed JSON.
 
----
-
 ## **📊 Prototype Baseline Report (2026-07-08)**
 
 ### **Single Baseline Run**
@@ -643,8 +621,6 @@ Replay symbol legend:
 
 These are the primary targets for the next tuning pass.
 
----
-
 ### **🔗 Quick Links to Diagrams**
 
 | System              | Canvas Link                                                                               |
@@ -655,8 +631,6 @@ These are the primary targets for the next tuning pass.
 | Carnivore Lifecycle | [terrarium-carnivore-insects-lifecycle](sandbox/terrarium-carnivore-insects-lifecycle.md) |
 | Resource Cycle      | [terrarium-resource-cycle](sandbox/terrarium-resource-cycle.md)                           |
 | Main Game Loop      | [terrarium-main-game-loop](sandbox/terrarium-main-game-loop.md)                           |
-
----
 
 ### **💡 Notes for Contributors**
 
