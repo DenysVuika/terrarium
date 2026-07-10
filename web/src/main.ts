@@ -28,6 +28,14 @@ type SimulationStatus = {
   events: string;
 };
 
+type HoverStatus = {
+  visible: boolean;
+  clientX: number;
+  clientY: number;
+  title: string;
+  rows: string[];
+};
+
 type TimeScalePreset = '60' | '30' | '15';
 
 type SpriteKind =
@@ -115,6 +123,10 @@ class TerrariumScene {
   elapsed: number;
   visualTime: number;
   onStatus: (status: SimulationStatus) => void;
+  onHover: (status: HoverStatus) => void;
+  hoverCell: number | null;
+  hoverClientX: number;
+  hoverClientY: number;
 
   constructor(
     app: Application,
@@ -140,6 +152,10 @@ class TerrariumScene {
     this.running = true;
     this.elapsed = 0;
     this.visualTime = 0;
+    this.onHover = () => undefined;
+    this.hoverCell = null;
+    this.hoverClientX = 0;
+    this.hoverClientY = 0;
 
     this.spritePools = createKindRecord(() => []);
     this.spriteUsage = createKindRecord(() => 0);
@@ -279,6 +295,115 @@ class TerrariumScene {
       },
       { passive: false },
     );
+
+    this.app.canvas.addEventListener('mousemove', (event) => {
+      this.handleHoverAtClient(event.clientX, event.clientY);
+    });
+
+    this.app.canvas.addEventListener('mouseleave', () => {
+      this.hoverCell = null;
+      this.onHover({
+        visible: false,
+        clientX: this.hoverClientX,
+        clientY: this.hoverClientY,
+        title: '',
+        rows: [],
+      });
+    });
+  }
+
+  terrainLabel(terrainType: number): string {
+    if (terrainType === TERRAIN.SOIL) return 'Soil';
+    if (terrainType === TERRAIN.WATER) return 'Water';
+    if (terrainType === TERRAIN.SAND) return 'Sand';
+    return 'Empty';
+  }
+
+  handleHoverAtClient(clientX: number, clientY: number): void {
+    const rect = this.app.canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return;
+    }
+
+    this.hoverClientX = clientX;
+    this.hoverClientY = clientY;
+
+    const normalizedX = (clientX - rect.left) / rect.width;
+    const normalizedY = (clientY - rect.top) / rect.height;
+    const screenX = normalizedX * this.app.screen.width;
+    const screenY = normalizedY * this.app.screen.height;
+
+    const worldX = (screenX - this.cameraX) / this.zoom;
+    const worldY = (screenY - this.cameraY) / this.zoom;
+
+    const cellX = Math.floor(worldX / this.baseCellSize);
+    const cellY = Math.floor(worldY / this.baseCellSize);
+
+    if (cellX < 0 || cellY < 0 || cellX >= this.size || cellY >= this.size) {
+      this.hoverCell = null;
+      this.onHover({
+        visible: false,
+        clientX,
+        clientY,
+        title: '',
+        rows: [],
+      });
+      return;
+    }
+
+    const cell = cellY * this.size + cellX;
+    this.hoverCell = cell;
+    this.emitHoverDetails(cell, clientX, clientY);
+  }
+
+  emitHoverDetails(cell: number, clientX: number, clientY: number): void {
+    const world = this.simulator.world;
+    const terrainType = world.terrain[cell];
+    const water = world.water[cell];
+    const nutrients = world.nutrients[cell];
+    const plant = this.simulator.entities.plants.get(cell);
+    const herbivores = this.simulator.entities.herbivores.filter(
+      (entity) => entity.alive && entity.cell === cell,
+    );
+    const carnivores = this.simulator.entities.carnivores.filter(
+      (entity) => entity.alive && entity.cell === cell,
+    );
+
+    const coords = world.coords(cell);
+    const rows: string[] = [
+      `Terrain: ${this.terrainLabel(terrainType)}`,
+      `Water: ${water.toFixed(1)} | Nutrients: ${nutrients.toFixed(1)}`,
+    ];
+
+    if (plant) {
+      rows.push(
+        `Plant: growth ${plant.growth.toFixed(1)}${plant.wilted ? ' (wilted)' : ''}`,
+      );
+    }
+
+    for (const herbivore of herbivores) {
+      rows.push(
+        `Herbivore (${herbivore.behaviorId}) | stage ${herbivore.stage} | age ${herbivore.age} | energy ${herbivore.energy.toFixed(1)}`,
+      );
+    }
+
+    for (const carnivore of carnivores) {
+      rows.push(
+        `Carnivore (${carnivore.behaviorId}) | stage ${carnivore.stage} | age ${carnivore.age} | energy ${carnivore.energy.toFixed(1)} | AP ${carnivore.ap.toFixed(1)}`,
+      );
+    }
+
+    if (!plant && herbivores.length === 0 && carnivores.length === 0) {
+      rows.push('No entities in this cell.');
+    }
+
+    this.onHover({
+      visible: true,
+      clientX,
+      clientY,
+      title: `Cell (${coords.x}, ${coords.y}) #${cell}`,
+      rows,
+    });
   }
 
   applyWorldTransform(): void {
@@ -630,6 +755,9 @@ class TerrariumScene {
     }
 
     this.drawDynamicLayers();
+    if (this.hoverCell !== null) {
+      this.emitHoverDetails(this.hoverCell, this.hoverClientX, this.hoverClientY);
+    }
     this.pushStatus();
   }
 
@@ -722,6 +850,17 @@ function createHud(scene: TerrariumScene): void {
   if (!hud) {
     return;
   }
+
+  const existingHover = document.getElementById('hover-inspector');
+  if (existingHover) {
+    existingHover.remove();
+  }
+
+  const hoverInspector = document.createElement('aside');
+  hoverInspector.id = 'hover-inspector';
+  hoverInspector.setAttribute('aria-live', 'polite');
+  hoverInspector.className = 'hover-inspector hidden';
+  document.body.appendChild(hoverInspector);
 
   hud.innerHTML = `
     <h1>Terrarium Simulator</h1>
@@ -839,6 +978,34 @@ function createHud(scene: TerrariumScene): void {
     if (events) {
       events.textContent = status.events;
     }
+  };
+
+  scene.onHover = (status) => {
+    if (!status.visible) {
+      hoverInspector.classList.add('hidden');
+      return;
+    }
+
+    hoverInspector.innerHTML = `
+      <h3>${status.title}</h3>
+      <ul>
+        ${status.rows.map((row) => `<li>${row}</li>`).join('')}
+      </ul>
+    `;
+
+    hoverInspector.classList.remove('hidden');
+
+    const offset = 14;
+    let left = status.clientX + offset;
+    let top = status.clientY + offset;
+
+    const maxLeft = window.innerWidth - hoverInspector.offsetWidth - 8;
+    const maxTop = window.innerHeight - hoverInspector.offsetHeight - 8;
+    left = Math.max(8, Math.min(maxLeft, left));
+    top = Math.max(8, Math.min(maxTop, top));
+
+    hoverInspector.style.left = `${left}px`;
+    hoverInspector.style.top = `${top}px`;
   };
 
   scene.pushStatus();

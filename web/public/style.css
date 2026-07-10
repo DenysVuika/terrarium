@@ -192,6 +192,43 @@ body {
   cursor: grabbing;
 }
 
+.hover-inspector {
+  position: fixed;
+  z-index: 30;
+  pointer-events: none;
+  max-width: 360px;
+  border: 1px solid rgba(166, 198, 226, 0.3);
+  border-radius: 10px;
+  background: rgba(10, 15, 24, 0.95);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+  padding: 10px;
+}
+
+.hover-inspector.hidden {
+  display: none;
+}
+
+.hover-inspector h3 {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.hover-inspector ul {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.hover-inspector li {
+  margin: 0 0 4px;
+}
+
+.hover-inspector li:last-child {
+  margin-bottom: 0;
+}
+
 @media (max-width: 1024px) {
   #app {
     grid-template-columns: 1fr;
