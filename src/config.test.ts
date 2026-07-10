@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { getDefaultConfig } from '../src/config';
+import { getDefaultConfig } from './config';
 
 describe('getDefaultConfig', () => {
   it('returns an isolated deep clone of the default config', () => {

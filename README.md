@@ -357,6 +357,15 @@ pnpm format:check
 pnpm test
 ```
 
+### **Testing Convention**
+
+- Tests are colocated next to the source files they validate.
+- File naming pattern: `*.test.ts` in `src/**`.
+- Examples:
+  - `src/world.ts` -> `src/world.test.ts`
+  - `src/entities/repository.ts` -> `src/entities/repository.test.ts`
+  - `src/behaviors/behavior-factory.ts` -> `src/behaviors/behavior-factory.test.ts`
+
 - Run full gate (typecheck + build + lint + tests):
 
 ```bash
