@@ -387,6 +387,7 @@ pnpm simulate --replay latest --native-size
 
 - `--ticks <number>`: total ticks (default `100`)
 - `--size <number>`: world width/height (default `250`)
+- `--config <path>`: load config overrides from a `.json`, `.yaml`, or `.yml` file
 - `--seed <string>`: deterministic seed
 - `--plants <number>`: initial plant count
 - `--herbivores <number>`: initial herbivore count
@@ -417,7 +418,8 @@ The simulator uses baseline defaults from `src/config.ts` and then applies CLI o
 
 - Override precedence:
   1. `DEFAULT_CONFIG` in `src/config.ts`
-  2. CLI flags passed to `pnpm simulate ...`
+  2. Optional config file passed with `--config`
+  3. CLI flags passed to `pnpm simulate ...`
 
 - Common tuning groups:
   - **World**: `world.size`, `world.ticks`, `world.seed`, `world.lidOpen`
@@ -428,8 +430,32 @@ The simulator uses baseline defaults from `src/config.ts` and then applies CLI o
 
 - Practical workflow:
   1. Keep `src/config.ts` as the canonical baseline.
-  2. Use CLI flags for scenario experiments (`--ticks`, `--day-ticks`, `--night-ticks`, initial populations).
-  3. Promote stable scenario values back into `src/config.ts` once validated.
+  2. Use `--config scenario.yaml` or `--config scenario.json` for grouped scenario overrides.
+  3. Use CLI flags for quick one-off experiments (`--ticks`, `--day-ticks`, `--night-ticks`, initial populations).
+  4. Promote stable scenario values back into `src/config.ts` once validated.
+
+- Example scenario file:
+
+```yaml
+world:
+  seed: scenario-a
+  ticks: 150
+
+plants:
+  initialCount: 2000
+
+insects:
+  herbivores:
+    initialCount: 220
+    breed:
+      chance: 0.1
+```
+
+Run it with:
+
+```bash
+pnpm simulate --config scenario.yaml
+```
 
 - Anti-overpopulation controls:
   - Herbivores: `insects.herbivores.breed.chance`, `insects.herbivores.breed.cooldown`, `insects.herbivores.breed.localCap`, `insects.herbivores.breed.populationCapPerPlant`
@@ -462,7 +488,7 @@ The simulator is designed so a new insect type can be contributed without touchi
 |    2 | `src/behaviors/my-insect/`                                           | Strategy class implementations for the species                                                                                                        |
 |    3 | `src/behaviors/behavior-factory.ts`                                 | Wire `resolveMyInsectBehavior` (one function, two lines)                                                                                             |
 |    4 | `src/entities/insects/my-insect.ts` (bottom)                        | `insectRegistry.register({ kind, behaviorIds, seedEnergyRange, initialCount, create })`                                                              |
-|    5 | `src/config.ts` (optional)                                          | Add `initialMyInsects: 0` if a tunable starting population is needed                                                                                 |
+|    5 | `src/config.ts` (optional)                                          | Add a nested config branch such as `insects.myInsects.initialCount` if a tunable starting population is needed                                     |
 
 Once registered, the simulator automatically seeds, ticks, and counts the new species — no other changes needed.
 

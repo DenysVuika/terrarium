@@ -152,3 +152,13 @@ export const DEFAULT_CONFIG = {
 };
 
 export type SimulationConfig = typeof DEFAULT_CONFIG;
+
+export type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends Record<string, unknown>
+    ? DeepPartial<T[K]>
+    : T[K];
+};
+
+export function getDefaultConfig(): SimulationConfig {
+  return structuredClone(DEFAULT_CONFIG);
+}
