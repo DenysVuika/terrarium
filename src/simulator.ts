@@ -51,6 +51,16 @@ export interface Outcome {
 
 interface RunOptions {
   captureFrames?: boolean;
+  streamFrames?: boolean;
+  onFrame?: (
+    frame: ReplayFrame,
+    meta: {
+      tick: number;
+      totalTicks: number;
+      size: number;
+      terrain: Uint8Array;
+    },
+  ) => void;
 }
 
 export interface SimulationResult {
@@ -167,15 +177,37 @@ class Simulator {
 
   run(options: RunOptions = {}): SimulationResult {
     const captureFrames = Boolean(options.captureFrames);
+    const streamFrames = Boolean(options.streamFrames || options.onFrame);
     const initialState = this.snapshot();
+    const shouldBuildFrames = captureFrames || streamFrames;
     const frames = captureFrames ? [this.buildReplayFrame(initialState)] : null;
+
+    if (streamFrames && options.onFrame) {
+      options.onFrame(this.buildReplayFrame(initialState), {
+        tick: 0,
+        totalTicks: this.config.world.ticks,
+        size: this.world.size,
+        terrain: this.world.terrain,
+      });
+    }
 
     while (!this.outcome && this.tick < this.config.world.ticks) {
       this.step();
-      if (captureFrames && frames) {
-        frames.push(
-          this.buildReplayFrame(this.history[this.history.length - 1]),
-        );
+      if (shouldBuildFrames) {
+        const frame = this.buildReplayFrame(this.history[this.history.length - 1]);
+
+        if (captureFrames && frames) {
+          frames.push(frame);
+        }
+
+        if (streamFrames && options.onFrame) {
+          options.onFrame(frame, {
+            tick: this.tick,
+            totalTicks: this.config.world.ticks,
+            size: this.world.size,
+            terrain: this.world.terrain,
+          });
+        }
       }
     }
 

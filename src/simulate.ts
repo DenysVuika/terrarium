@@ -19,6 +19,7 @@ import {
 
 type SimulationCliConfig = SimulationConfig & {
   sweep: boolean;
+  stream: boolean;
   replayPath: string | null;
   recordJsonPath: string | null;
   recordJsonCompressed: boolean;
@@ -102,6 +103,7 @@ function parseArgs(argv: string[]): SimulationCliConfig {
   const args: SimulationCliConfig = {
     ...getDefaultConfig(),
     sweep: false,
+    stream: false,
     replayPath: null,
     recordJsonPath: null,
     recordJsonCompressed: true,
@@ -153,6 +155,8 @@ function parseArgs(argv: string[]): SimulationCliConfig {
       args.climate.nightTicks = Number(argv[++index]);
     } else if (token === '--sweep') {
       args.sweep = true;
+    } else if (token === '--stream') {
+      args.stream = true;
     } else if (token === '--record-json') {
       args.recordJsonPath = String(argv[++index]);
     } else if (token === '--record-json-gzip') {
@@ -500,6 +504,200 @@ function renderFrame(
   process.stdout.write(`${lines.join('\n')}\n`);
 }
 
+function renderLiveFrame(
+  frame: {
+    tick: number;
+    o2: number;
+    co2: number;
+    plants: number[];
+    herbivores: number[];
+    carnivores: number[];
+    insectEggs?: number[];
+    events?: string[];
+  },
+  meta: {
+    tick: number;
+    totalTicks: number;
+    size: number;
+    terrain: Uint8Array;
+  },
+  width: number,
+  height: number,
+  playback: {
+    fps: number;
+    emojiMode: boolean;
+  },
+  previousFrames: Array<{
+    tick: number;
+    events?: string[];
+  }>,
+): void {
+  const map = new Array<string>(width * height).fill(' ');
+  const useEmoji = playback.emojiMode;
+  const terrainSymbol = useEmoji ? terrainEmoji : terrainChar;
+
+  for (let py = 0; py < height; py += 1) {
+    for (let px = 0; px < width; px += 1) {
+      const worldX = Math.floor((px / width) * meta.size);
+      const worldY = Math.floor((py / height) * meta.size);
+      const worldIndex = worldY * meta.size + worldX;
+      map[py * width + px] = terrainSymbol(meta.terrain[worldIndex]);
+    }
+  }
+
+  const overlay = (cells: number[], marker: string): void => {
+    for (let index = 0; index < cells.length; index += 1) {
+      const cell = cells[index];
+      const worldX = cell % meta.size;
+      const worldY = Math.floor(cell / meta.size);
+      const px = Math.min(width - 1, Math.floor((worldX / meta.size) * width));
+      const py = Math.min(
+        height - 1,
+        Math.floor((worldY / meta.size) * height),
+      );
+      map[py * width + px] = marker;
+    }
+  };
+
+  overlay(frame.plants, useEmoji ? '🌿' : '*');
+  overlay(frame.herbivores, useEmoji ? '🐛' : 'h');
+  overlay(frame.carnivores, useEmoji ? '🦂' : 'C');
+  overlay(frame.insectEggs || [], useEmoji ? '🥚' : 'o');
+
+  const lines: string[] = [];
+  lines.push(
+    `Tick ${String(meta.tick).padStart(3)} / ${meta.totalTicks}   ` +
+      `O2=${frame.o2.toFixed(2)} CO2=${frame.co2.toFixed(2)}   ` +
+      `P=${frame.plants.length} H=${frame.herbivores.length} C=${frame.carnivores.length}`,
+  );
+  lines.push(
+    useEmoji
+      ? 'Legend: 🟫 soil  🟦 water  🟨 sand  ⬛ empty  🌿 plant  🐛 herbivore  🦂 carnivore  🥚 egg'
+      : 'Legend: . soil  ~ water  : sand  [space] empty  * plant  h herbivore  C carnivore  o egg',
+  );
+  lines.push(`Playback: stream @ ${playback.fps} fps`);
+  lines.push(`Render mode: ${useEmoji ? 'emoji' : 'ascii'}`);
+  lines.push(
+    `Board view: ${width}x${height} ${width === meta.size && height === meta.size ? '(native)' : `(sampled from ${meta.size}x${meta.size})`}`,
+  );
+  lines.push('Controls: Ctrl+C to stop stream.');
+  lines.push('');
+
+  for (let py = 0; py < height; py += 1) {
+    const start = py * width;
+    lines.push(map.slice(start, start + width).join(''));
+  }
+
+  lines.push('');
+  lines.push('Timeline (current tick):');
+  const tickEvents = Array.isArray(frame.events) ? frame.events : [];
+  if (tickEvents.length === 0) {
+    lines.push('  - none');
+  } else {
+    const maxEvents = 8;
+    for (
+      let index = 0;
+      index < Math.min(maxEvents, tickEvents.length);
+      index += 1
+    ) {
+      lines.push(`  - ${tickEvents[index]}`);
+    }
+    if (tickEvents.length > maxEvents) {
+      lines.push(`  - ... ${tickEvents.length - maxEvents} more`);
+    }
+  }
+
+  lines.push('');
+  lines.push('Recent Event History (previous ticks):');
+  let historyPrinted = false;
+  for (let index = 0; index < previousFrames.length; index += 1) {
+    const historyFrame = previousFrames[index];
+    const historyEvents = Array.isArray(historyFrame.events)
+      ? historyFrame.events
+      : [];
+    if (historyEvents.length === 0) {
+      continue;
+    }
+
+    historyPrinted = true;
+    const preview = historyEvents.slice(0, 3).join(' | ');
+    const suffix = historyEvents.length > 3 ? ' | ...' : '';
+    lines.push(
+      `  t=${String(historyFrame.tick).padStart(3)}: ${preview}${suffix}`,
+    );
+  }
+
+  if (!historyPrinted) {
+    lines.push('  - none');
+  }
+
+  process.stdout.write('\x1Bc');
+  process.stdout.write(`${lines.join('\n')}\n`);
+}
+
+function sleepMs(milliseconds: number): void {
+  const delay = Math.max(0, Math.floor(milliseconds));
+  if (delay === 0) {
+    return;
+  }
+
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay);
+}
+
+function runStream(config: SimulationCliConfig): void {
+  const viewport = resolveReplayViewport(
+    config,
+    config.emojiMode,
+    config.world.size,
+  );
+  const frameDelayMs = Math.round(1000 / Math.max(1, config.replayFps));
+  const previousFrames: Array<{
+    tick: number;
+    events?: string[];
+  }> = [];
+
+  const result = runSimulation(config, {
+    captureFrames: false,
+    streamFrames: true,
+    onFrame(frame, meta) {
+      renderLiveFrame(
+        frame,
+        meta,
+        viewport.width,
+        viewport.height,
+        {
+          fps: Math.max(1, config.replayFps),
+          emojiMode: config.emojiMode,
+        },
+        previousFrames,
+      );
+
+      previousFrames.push({ tick: frame.tick, events: frame.events });
+      if (previousFrames.length > 5) {
+        previousFrames.shift();
+      }
+
+      sleepMs(frameDelayMs);
+    },
+  });
+
+  printRun(result);
+
+  if (config.recordCsvPath) {
+    writeCsv(result, config.recordCsvPath);
+    console.log(`CSV written: ${config.recordCsvPath}`);
+  }
+
+  if (config.recordJsonPath) {
+    const writtenPath = writeJsonRecording(
+      result,
+      config.recordJsonPath,
+      config.recordJsonCompressed,
+    );
+    console.log(`Replay JSON written: ${writtenPath}`);
+  }
+}
+
 function startReplayInteractive(
   replayPayload: ReplayRecording,
   width: number,
@@ -781,6 +979,10 @@ function runSweep(baseConfig: SimulationConfig): void {
 function main(): void {
   const config = parseArgs(process.argv.slice(2));
 
+  if (config.stream && config.replayPath) {
+    throw new Error('Cannot combine --stream with --replay');
+  }
+
   if (config.replayPath) {
     const replayFilePath = resolveReplayPath(config.replayPath);
     const replayPayload = loadReplay(replayFilePath);
@@ -802,6 +1004,11 @@ function main(): void {
 
   if (config.sweep) {
     runSweep(config);
+    return;
+  }
+
+  if (config.stream) {
+    runStream(config);
     return;
   }
 

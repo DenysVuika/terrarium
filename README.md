@@ -299,6 +299,12 @@ pnpm simulate --ticks 100 --seed my-seed --record-csv runs/my-seed.csv --record-
 pnpm replay
 ```
 
+- Stream the simulation live tick-by-tick (no replay JSON required):
+
+```bash
+pnpm stream -- --ticks 100 --fps 2
+```
+
 ### **Build and Quality Pipeline**
 
 - Typecheck:
@@ -385,6 +391,7 @@ pnpm simulate --replay latest --native-size
 - `--day-ticks <number>`: number of ticks per day phase (default `1`)
 - `--night-ticks <number>`: number of ticks per night phase (default `1`)
 - `--sweep`: run fixed 5-seed stability sweep
+- `--stream`: render each tick live during simulation (no `--replay` file needed)
 - `--record-csv <path>`: write per-tick aggregate metrics CSV
 - `--record-json <path>`: write replay JSON at path (compressed by default)
 - `--record-json-gzip`: force gzip-compressed replay output (default)
