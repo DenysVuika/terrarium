@@ -1,17 +1,24 @@
 import type { SimulationConfig } from '../../config';
 import type { SimContext } from '../../context';
-import { HERBIVORE_BEHAVIOR_IDS, type HerbivoreBehaviorId, resolveHerbivoreBehavior } from '@/behaviors';
+import {
+  HERBIVORE_BEHAVIOR_IDS,
+  type HerbivoreBehaviorId,
+  type InsectBehaviorStrategy,
+  resolveHerbivoreBehavior,
+} from '@/behaviors';
 import { insectRegistry } from './insect-registry';
 import { Insect } from './insect';
 
 export class Herbivore extends Insect {
   readonly behaviorId: HerbivoreBehaviorId;
+  private readonly behavior: InsectBehaviorStrategy<Herbivore>;
   private readonly _config: SimulationConfig;
 
   constructor(id: string, cell: number, energy: number, config: SimulationConfig, behaviorId: HerbivoreBehaviorId) {
     super('herbivore', id, cell, energy);
     this._config = config;
     this.behaviorId = behaviorId;
+    this.behavior = resolveHerbivoreBehavior(behaviorId);
   }
 
   get config(): SimulationConfig {
@@ -56,7 +63,7 @@ export class Herbivore extends Insect {
   }
 
   protected tickBehavior(ctx: SimContext): void {
-    resolveHerbivoreBehavior(this.behaviorId).tick(this, ctx);
+    this.behavior.tick(this, ctx);
   }
 }
 

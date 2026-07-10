@@ -3,6 +3,7 @@ import type { SimContext } from '../../context';
 import {
   CARNIVORE_BEHAVIOR_IDS,
   type CarnivoreBehaviorId,
+  type InsectBehaviorStrategy,
   resolveCarnivoreBehavior,
 } from '@/behaviors';
 import { TERRAIN } from '../../world';
@@ -16,6 +17,7 @@ function clamp(value: number, min: number, max: number): number {
 export class Carnivore extends Insect {
   ap: number;
   readonly behaviorId: CarnivoreBehaviorId;
+  private readonly behavior: InsectBehaviorStrategy<Carnivore>;
   private readonly _config: SimulationConfig;
 
   constructor(
@@ -28,6 +30,7 @@ export class Carnivore extends Insect {
     super('carnivore', id, cell, energy);
     this._config = config;
     this.behaviorId = behaviorId;
+    this.behavior = resolveCarnivoreBehavior(behaviorId);
     this.ap = 0;
   }
 
@@ -79,7 +82,7 @@ export class Carnivore extends Insect {
   }
 
   protected tickBehavior(ctx: SimContext): void {
-    resolveCarnivoreBehavior(this.behaviorId).tick(this, ctx);
+    this.behavior.tick(this, ctx);
   }
 }
 
