@@ -23,6 +23,8 @@ class TerrariumScene {
   simulator: Simulator;
   worldContainer: Container;
   terrainLayer: Graphics;
+  waterOverlayLayer: Graphics;
+  atmosphereLayer: Graphics;
   plantLayer: Graphics;
   herbivoreLayer: Graphics;
   carnivoreLayer: Graphics;
@@ -40,6 +42,7 @@ class TerrariumScene {
   ticksPerSecond: number;
   running: boolean;
   elapsed: number;
+  visualTime: number;
   onStatus: (status: SimulationStatus) => void;
 
   constructor(app: Application, onStatus: (status: SimulationStatus) => void) {
@@ -59,19 +62,24 @@ class TerrariumScene {
     this.ticksPerSecond = 8;
     this.running = true;
     this.elapsed = 0;
+    this.visualTime = 0;
 
     this.worldContainer = new Container();
     this.terrainLayer = new Graphics();
+    this.waterOverlayLayer = new Graphics();
+    this.atmosphereLayer = new Graphics();
     this.plantLayer = new Graphics();
     this.herbivoreLayer = new Graphics();
     this.carnivoreLayer = new Graphics();
     this.eggLayer = new Graphics();
 
     this.worldContainer.addChild(this.terrainLayer);
+    this.worldContainer.addChild(this.waterOverlayLayer);
     this.worldContainer.addChild(this.plantLayer);
     this.worldContainer.addChild(this.herbivoreLayer);
     this.worldContainer.addChild(this.carnivoreLayer);
     this.worldContainer.addChild(this.eggLayer);
+    this.worldContainer.addChild(this.atmosphereLayer);
     this.app.stage.addChild(this.worldContainer);
 
     this.setupCameraInteractions();
@@ -171,10 +179,7 @@ class TerrariumScene {
     if (worldSize <= viewHeight) {
       this.cameraY = Math.round((viewHeight - worldSize) / 2);
     } else {
-      this.cameraY = Math.min(
-        0,
-        Math.max(viewHeight - worldSize, this.cameraY),
-      );
+      this.cameraY = Math.min(0, Math.max(viewHeight - worldSize, this.cameraY));
     }
   }
 
@@ -239,7 +244,6 @@ class TerrariumScene {
 
   drawTerrain(): void {
     const terrain = this.simulator.world.terrain;
-    const length = terrain.length;
     const soilColor = 0x536b2f;
     const waterColor = 0x2e6b9e;
     const sandColor = 0xb59f68;
@@ -247,7 +251,7 @@ class TerrariumScene {
 
     this.terrainLayer.clear();
 
-    for (let index = 0; index < length; index += 1) {
+    for (let index = 0; index < terrain.length; index += 1) {
       const x = (index % this.size) * this.baseCellSize;
       const y = Math.floor(index / this.size) * this.baseCellSize;
       const terrainType = terrain[index];
@@ -265,51 +269,223 @@ class TerrariumScene {
     }
   }
 
-  drawPlants(cells: number[]): void {
+  drawPlants(): void {
     this.plantLayer.clear();
-    const inset = Math.max(0, Math.floor(this.baseCellSize * 0.15));
-    const size = Math.max(1, this.baseCellSize - inset * 2);
-
-    for (const cell of cells) {
-      const x = (cell % this.size) * this.baseCellSize + inset;
-      const y = Math.floor(cell / this.size) * this.baseCellSize + inset;
-      this.plantLayer.rect(x, y, size, size);
-      this.plantLayer.fill({ color: 0x69d25b });
-    }
-  }
-
-  drawInsects(cells: number[], color: number, layer: Graphics): void {
-    layer.clear();
-    const radius = Math.max(1, this.baseCellSize * 0.36);
     const centerOffset = this.baseCellSize * 0.5;
 
-    for (const cell of cells) {
-      const x = (cell % this.size) * this.baseCellSize + centerOffset;
-      const y = Math.floor(cell / this.size) * this.baseCellSize + centerOffset;
-      layer.circle(x, y, radius);
-      layer.fill({ color });
+    for (const plant of this.simulator.entities.plants.values()) {
+      const x = (plant.cell % this.size) * this.baseCellSize + centerOffset;
+      const y = Math.floor(plant.cell / this.size) * this.baseCellSize + centerOffset;
+
+      if (plant.growth < 30) {
+        this.plantLayer.circle(x, y, Math.max(1, this.baseCellSize * 0.18));
+        this.plantLayer.fill({ color: plant.wilted ? 0x6e7553 : 0x7fe56b });
+      } else if (plant.growth < 70) {
+        const radius = Math.max(1, this.baseCellSize * 0.28);
+        this.plantLayer.roundRect(
+          x - radius,
+          y - radius,
+          radius * 2,
+          radius * 2,
+          Math.max(1, radius * 0.35),
+        );
+        this.plantLayer.fill({ color: plant.wilted ? 0x6f6d47 : 0x66c95e });
+      } else {
+        const leafRadius = Math.max(1, this.baseCellSize * 0.2);
+        const leafColor = plant.wilted ? 0x7a6948 : 0x5ab451;
+        this.plantLayer.circle(x - leafRadius, y, leafRadius);
+        this.plantLayer.fill({ color: leafColor });
+        this.plantLayer.circle(x + leafRadius, y, leafRadius);
+        this.plantLayer.fill({ color: leafColor });
+        this.plantLayer.circle(x, y - leafRadius, leafRadius);
+        this.plantLayer.fill({ color: leafColor });
+        this.plantLayer.circle(x, y + leafRadius, leafRadius);
+        this.plantLayer.fill({ color: leafColor });
+        this.plantLayer.circle(x, y, Math.max(1, this.baseCellSize * 0.14));
+        this.plantLayer.fill({ color: plant.wilted ? 0x8a7848 : 0x9cf873 });
+      }
     }
   }
 
-  drawEggs(cells: number[]): void {
+  drawHerbivores(): void {
+    this.herbivoreLayer.clear();
+    const centerOffset = this.baseCellSize * 0.5;
+
+    for (const herbivore of this.simulator.entities.herbivores) {
+      if (!herbivore.alive || herbivore.stage === 'egg') {
+        continue;
+      }
+
+      const x = (herbivore.cell % this.size) * this.baseCellSize + centerOffset;
+      const y = Math.floor(herbivore.cell / this.size) * this.baseCellSize + centerOffset;
+      const isLarva = herbivore.stage === 'larva';
+      const radius = Math.max(1, this.baseCellSize * (isLarva ? 0.2 : 0.3));
+      const color = herbivore.behaviorId === 'forager' ? 0x8efeff : 0x65d7c8;
+
+      if (herbivore.behaviorId === 'forager') {
+        this.herbivoreLayer.poly([
+          x,
+          y - radius,
+          x + radius,
+          y,
+          x,
+          y + radius,
+          x - radius,
+          y,
+        ]);
+        this.herbivoreLayer.fill({ color });
+      } else {
+        this.herbivoreLayer.poly([
+          x,
+          y - radius,
+          x + radius,
+          y + radius,
+          x - radius,
+          y + radius,
+        ]);
+        this.herbivoreLayer.fill({ color });
+      }
+
+      this.herbivoreLayer.circle(x, y, Math.max(1, radius * 0.28));
+      this.herbivoreLayer.fill({ color: 0xd8fff8 });
+    }
+  }
+
+  drawCarnivores(): void {
+    this.carnivoreLayer.clear();
+    const centerOffset = this.baseCellSize * 0.5;
+
+    for (const carnivore of this.simulator.entities.carnivores) {
+      if (!carnivore.alive || carnivore.stage === 'egg') {
+        continue;
+      }
+
+      const x = (carnivore.cell % this.size) * this.baseCellSize + centerOffset;
+      const y = Math.floor(carnivore.cell / this.size) * this.baseCellSize + centerOffset;
+      const isLarva = carnivore.stage === 'larva';
+      const radius = Math.max(1, this.baseCellSize * (isLarva ? 0.22 : 0.34));
+
+      if (carnivore.behaviorId === 'aggressive') {
+        this.carnivoreLayer.poly([
+          x,
+          y - radius,
+          x + radius * 0.8,
+          y - radius * 0.2,
+          x + radius,
+          y + radius * 0.85,
+          x,
+          y + radius * 0.45,
+          x - radius,
+          y + radius * 0.85,
+          x - radius * 0.8,
+          y - radius * 0.2,
+        ]);
+        this.carnivoreLayer.fill({ color: 0xff6f64 });
+      } else if (carnivore.behaviorId === 'passive') {
+        this.carnivoreLayer.circle(x, y, radius);
+        this.carnivoreLayer.fill({ color: 0xffaa77 });
+        this.carnivoreLayer.circle(x, y, Math.max(1, radius * 0.55));
+        this.carnivoreLayer.fill({ color: 0x7a2e24 });
+      } else {
+        this.carnivoreLayer.poly([
+          x,
+          y - radius,
+          x + radius,
+          y + radius,
+          x - radius,
+          y + radius,
+        ]);
+        this.carnivoreLayer.fill({ color: 0xff7b6b });
+      }
+
+      this.carnivoreLayer.circle(x, y, Math.max(1, radius * 0.16));
+      this.carnivoreLayer.fill({ color: 0xffdfda });
+    }
+  }
+
+  drawEggs(): void {
     this.eggLayer.clear();
-    const radius = Math.max(1, this.baseCellSize * 0.18);
+    const radius = Math.max(1, this.baseCellSize * 0.2);
     const centerOffset = this.baseCellSize * 0.5;
 
-    for (const cell of cells) {
-      const x = (cell % this.size) * this.baseCellSize + centerOffset;
-      const y = Math.floor(cell / this.size) * this.baseCellSize + centerOffset;
+    for (const herbivore of this.simulator.entities.herbivores) {
+      if (!herbivore.alive || herbivore.stage !== 'egg') {
+        continue;
+      }
+
+      const x = (herbivore.cell % this.size) * this.baseCellSize + centerOffset;
+      const y = Math.floor(herbivore.cell / this.size) * this.baseCellSize + centerOffset;
       this.eggLayer.circle(x, y, radius);
       this.eggLayer.fill({ color: 0xf9f3d6 });
+      this.eggLayer.circle(x, y, Math.max(1, radius * 0.55));
+      this.eggLayer.fill({ color: 0x6fd5bd });
     }
+
+    for (const carnivore of this.simulator.entities.carnivores) {
+      if (!carnivore.alive || carnivore.stage !== 'egg') {
+        continue;
+      }
+
+      const x = (carnivore.cell % this.size) * this.baseCellSize + centerOffset;
+      const y = Math.floor(carnivore.cell / this.size) * this.baseCellSize + centerOffset;
+      this.eggLayer.circle(x, y, radius);
+      this.eggLayer.fill({ color: 0xf9f3d6 });
+      this.eggLayer.circle(x, y, Math.max(1, radius * 0.55));
+      this.eggLayer.fill({ color: 0xff8d83 });
+    }
+  }
+
+  drawWaterAndAtmosphere(): void {
+    this.waterOverlayLayer.clear();
+    this.atmosphereLayer.clear();
+
+    const world = this.simulator.world;
+    const wave = Math.sin(this.visualTime * 1.8) * 0.05;
+
+    for (let index = 0; index < world.length; index += 1) {
+      if (world.terrain[index] !== TERRAIN.WATER) {
+        continue;
+      }
+
+      const x = (index % this.size) * this.baseCellSize;
+      const y = Math.floor(index / this.size) * this.baseCellSize;
+      const depth = Math.max(0, Math.min(1, world.water[index] / 100));
+      const alpha = Math.max(0.06, Math.min(0.35, 0.08 + depth * 0.18 + wave));
+
+      this.waterOverlayLayer.rect(x, y, this.baseCellSize, this.baseCellSize);
+      this.waterOverlayLayer.fill({ color: 0x7bc1ff, alpha });
+    }
+
+    const globalWarmth = Math.max(0, Math.min(1, this.simulator.co2 / 100));
+    const oxygenBoost = Math.max(0, Math.min(1, this.simulator.o2 / 100));
+    const dayAlpha = this.simulator.day ? 0.07 : 0.16;
+    const sizePx = this.size * this.baseCellSize;
+
+    this.atmosphereLayer.rect(0, 0, sizePx, sizePx);
+    this.atmosphereLayer.fill({
+      color: this.simulator.day ? 0x98d8ff : 0x0e1a3b,
+      alpha: dayAlpha,
+    });
+
+    this.atmosphereLayer.rect(0, 0, sizePx, sizePx);
+    this.atmosphereLayer.fill({
+      color: 0xff8f65,
+      alpha: globalWarmth * 0.07,
+    });
+
+    this.atmosphereLayer.rect(0, 0, sizePx, sizePx);
+    this.atmosphereLayer.fill({
+      color: 0x7fd8a1,
+      alpha: oxygenBoost * 0.04,
+    });
   }
 
   drawDynamicLayers(): void {
-    const frame = this.simulator.buildReplayFrame(this.simulator.snapshot());
-    this.drawPlants(frame.plants);
-    this.drawInsects(frame.herbivores, 0x87ffd7, this.herbivoreLayer);
-    this.drawInsects(frame.carnivores, 0xff7b6b, this.carnivoreLayer);
-    this.drawEggs(frame.insectEggs);
+    this.drawPlants();
+    this.drawHerbivores();
+    this.drawCarnivores();
+    this.drawEggs();
+    this.drawWaterAndAtmosphere();
   }
 
   step(): void {
@@ -337,6 +513,9 @@ class TerrariumScene {
   }
 
   update(deltaSeconds: number): void {
+    this.visualTime += deltaSeconds;
+    this.drawWaterAndAtmosphere();
+
     if (!this.running) {
       return;
     }
@@ -366,6 +545,7 @@ class TerrariumScene {
     this.size = this.simulator.world.size;
     this.elapsed = 0;
     this.running = true;
+    this.visualTime = 0;
     this.resetView();
     this.resize();
     this.drawDynamicLayers();
@@ -422,9 +602,9 @@ function createHud(scene: TerrariumScene): void {
     <dl id="stats" class="hud-stats" aria-live="polite"></dl>
     <p id="events" class="hud-events"></p>
     <ul class="hud-legend" aria-label="Entity legend">
-      <li><span class="dot plant"></span>Plants</li>
-      <li><span class="dot herbivore"></span>Herbivores</li>
-      <li><span class="dot carnivore"></span>Carnivores</li>
+      <li><span class="dot plant"></span>Plants (growth stages)</li>
+      <li><span class="dot herbivore"></span>Herbivores (default/forager)</li>
+      <li><span class="dot carnivore"></span>Carnivores (default/aggressive/passive)</li>
       <li><span class="dot egg"></span>Eggs</li>
     </ul>
   `;
