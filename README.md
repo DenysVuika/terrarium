@@ -2,7 +2,7 @@
 
 ## **📌 Project Overview**
 
-**Goal**: Develop a **closed ecosystem simulation** (Terrarium) where **plants, herbivores, and carnivores** interact in a **2D grid world** (250x250 cells). The simulation must balance **resources (O₂, CO₂, water, nutrients)**, **entity lifecycles**, and **combat mechanics** while allowing for **player interaction** (e.g., toggling a lid).
+**Goal**: Develop a **closed ecosystem simulation** (Terrarium) where **plants, herbivores, and carnivores** interact in a **configurable 2D grid world**. The simulation must balance **resources (O₂, CO₂, water, nutrients)**, **entity lifecycles**, and **combat mechanics** while allowing for **player interaction** (e.g., toggling a lid).
 
 **Key Features**:
 
@@ -20,7 +20,7 @@
 
 ### **1. World (Grid System)**
 
-- **Grid**: 250x250 cells (for testing).
+- **Grid**: Configurable square dimensions (default side length: 250 for testing).
 - **Cell Types**:
   - **Soil**: 200 nutrients, regenerates **+0.1/tick**.
   - **Water**: 100 water, evaporates **-0.1/tick** (if lid is open).
@@ -366,7 +366,7 @@ pnpm simulate --replay runs/my-seed.json.gz
 pnpm simulate --replay runs/my-seed.json.gz --autoplay --fps 6
 ```
 
-- Replay with native board dimensions (full 250x250 render):
+- Replay with native board dimensions (full world-size render):
 
 ```bash
 pnpm simulate --replay latest --native-size
@@ -564,7 +564,7 @@ This keeps lifecycle/state in entities and policy logic in strategy modules, ena
 - `q`: quit replay
 
 When auto-fit is enabled, emoji mode uses a smaller sampled viewport by default for better readability.
-Use `--native-size` when you want the board view to match the true world dimensions (for example 250x250).
+Use `--native-size` when you want the board view to match the true world dimensions (for example 180x180 or 300x300).
 
 ### **Replay Timeline Panel**
 
