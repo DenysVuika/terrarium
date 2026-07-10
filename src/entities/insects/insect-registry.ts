@@ -1,5 +1,5 @@
-import type { SimulationConfig } from '../config';
-import type { Rng } from '../rng';
+import type { SimulationConfig } from '../../config';
+import type { Rng } from '../../rng';
 import type { Insect } from './insect';
 
 /**
@@ -10,7 +10,7 @@ import type { Insect } from './insect';
  *
  * @example
  * ```ts
- * // src/entities/decomposer.ts (at the bottom, after the class definition)
+ * // src/entities/insects/decomposer.ts (at the bottom, after the class definition)
  * insectRegistry.register({
  *   kind: 'decomposer',
  *   behaviorIds: DECOMPOSER_BEHAVIOR_IDS,

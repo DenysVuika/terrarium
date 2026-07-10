@@ -1,5 +1,5 @@
-import type { SimulationConfig } from '../config';
-import type { SimContext } from '../context';
+import type { SimulationConfig } from '../../config';
+import type { SimContext } from '../../context';
 import { HERBIVORE_BEHAVIOR_IDS, type HerbivoreBehaviorId, resolveHerbivoreBehavior } from '@/behaviors';
 import { insectRegistry } from './insect-registry';
 import { Insect } from './insect';
@@ -24,8 +24,6 @@ export class Herbivore extends Insect {
     return new Herbivore(ctx.nextId('h'), cell, 5, this._config, behaviorId);
   }
 
-  // Species parameters
-
   protected get eggStageTicks(): number {
     return this._config.eggStageTicks;
   }
@@ -48,8 +46,6 @@ export class Herbivore extends Insect {
     return this._config.herbivoreMoveEnergyCost;
   }
 
-  // Hooks
-
   protected onDeath(ctx: SimContext): void {
     ctx.stats.herbivoreDeaths += 1;
   }
@@ -64,8 +60,6 @@ export class Herbivore extends Insect {
   }
 }
 
-// Self-register so the simulator discovers this species without any imports in
-// simulator.ts. New species follow the same pattern in their own files.
 insectRegistry.register({
   kind: 'herbivore',
   behaviorIds: HERBIVORE_BEHAVIOR_IDS,

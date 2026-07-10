@@ -457,22 +457,23 @@ Behavior profiles are not configurable per-run from the CLI — the population m
 
 The simulator is designed so a new insect type can be contributed without touching the simulator, context, or repository. The contribution checklist is:
 
-| Step | File to create                                                     | What goes there                                                                                                                                    |
-| ---: | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-|    1 | `src/entities/my-insect.ts`                                        | Class extending `Insect`, lifecycle parameters, hooks                                                                                              |
-|    2 | `src/behaviors/my-insect/` + `src/entities/my-insect-behaviors.ts` | Strategy class implementations in `src/behaviors/my-insect/` and a small behavior registry/factory module in `src/entities/my-insect-behaviors.ts` |
-|    3 | `src/behaviors/behavior-factory.ts`                                | Wire `resolveMyInsectBehavior` (one function, two lines)                                                                                           |
-|    4 | `src/entities/my-insect.ts` (bottom)                               | `insectRegistry.register({ kind, behaviorIds, seedEnergyRange, initialCount, create })`                                                            |
-|    5 | `src/config.ts` (optional)                                         | Add `initialMyInsects: 0` if a tunable starting population is needed                                                                               |
+| Step | File to create                                                      | What goes there                                                                                                                                      |
+| ---: | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+|    1 | `src/entities/insects/my-insect.ts`                                 | Class extending `Insect`, lifecycle parameters, hooks                                                                                                |
+|    2 | `src/behaviors/my-insect/` + `src/behaviors/my-insect-behaviors.ts` | Strategy class implementations in `src/behaviors/my-insect/` and a small behavior registry/factory module in `src/behaviors/my-insect-behaviors.ts` |
+|    3 | `src/behaviors/behavior-factory.ts`                                 | Wire `resolveMyInsectBehavior` (one function, two lines)                                                                                             |
+|    4 | `src/entities/insects/my-insect.ts` (bottom)                        | `insectRegistry.register({ kind, behaviorIds, seedEnergyRange, initialCount, create })`                                                              |
+|    5 | `src/config.ts` (optional)                                          | Add `initialMyInsects: 0` if a tunable starting population is needed                                                                                 |
 
 Once registered, the simulator automatically seeds, ticks, and counts the new species — no other changes needed.
 
-**Minimal example skeleton** (`src/entities/decomposer.ts`):
+Contributors can import the grouped entity barrels through the existing `@` alias, for example `@/entities/insects` and `@/entities/plants`.
+
+**Minimal example skeleton** (`src/entities/insects/decomposer.ts`):
 
 ```typescript
-import { Insect } from './insect.ts';
-import { insectRegistry } from './insect-registry.ts';
-import { resolveDecomposerBehavior, DECOMPOSER_BEHAVIOR_IDS } from './decomposer-behaviors.ts';
+import { Insect, insectRegistry } from '@/entities/insects';
+import { resolveDecomposerBehavior, DECOMPOSER_BEHAVIOR_IDS } from '@/behaviors';
 
 export class Decomposer extends Insect {
   readonly behaviorId: string;
@@ -508,7 +509,7 @@ insectRegistry.register({
 
 Plants extend `Entity` directly and are simpler to add:
 
-1. Create `src/entities/my-plant.ts` extending `Plant` (or `Entity` for a fully custom tick loop).
+1. Create `src/entities/plants/my-plant.ts` extending `Plant` (or `Entity` for a fully custom tick loop).
 2. Override `tick(ctx): Plant | null` — return a child instance on reproduction, `null` otherwise.
 3. In the simulator's `seedInitialPopulation`, instantiate your plant class alongside the built-in `Plant`.
 
@@ -518,7 +519,9 @@ No registration mechanism is needed for plants because the simulator already pro
 
 The entity architecture separates concerns into dedicated modules:
 
-- `src/entities/insect-registry.ts`: singleton registry — the single integration point for new species.
+- Concrete implementations live under `src/entities/plants/` and `src/entities/insects/`.
+- Consumers can use the mapped barrels `@/entities/plants` and `@/entities/insects` for extension code instead of deep relative paths.
+- `src/entities/insects/insect-registry.ts`: singleton registry — the single integration point for new species.
 - `src/entities/repository.ts`: keyed insect storage (`Map<kind, Insect[]>`), typed getters for built-in species, population counts and cleanup.
 - `src/events.ts`: typed simulation events and string formatting for replay/timeline output.
 - `src/behaviors/behavior.ts`: strategy interface, behavior id types, and exported id arrays for random selection.
@@ -573,6 +576,11 @@ Replay symbol legend:
   - `src/world.ts`: grid generation, terrain patches, per-cell resources
   - `src/simulator.ts`: game loop, resources, entities, combat, win/lose checks
   - `src/simulate.ts`: CLI entry point, CSV/JSON recording, interactive replay
+  - `src/entities/plants/plant.ts`: built-in plant implementation
+  - `src/entities/insects/insect.ts`: shared insect lifecycle and movement base class
+  - `src/entities/insects/insect-registry.ts`: species registration and seeding contract
+  - `src/entities/insects/herbivore.ts`: built-in herbivore species and self-registration
+  - `src/entities/insects/carnivore.ts`: built-in carnivore species and self-registration
   - `src/entities/repository.ts`: entity collection management helpers
   - `src/events.ts`: typed replay/event timeline primitives
   - `src/behaviors/behavior.ts`: strategy interfaces and behavior ids

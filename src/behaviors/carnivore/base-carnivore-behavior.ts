@@ -1,7 +1,6 @@
 import type { SimContext } from '../../context';
 import type { InsectBehaviorStrategy } from '../behavior';
-import type { Carnivore } from '../../entities/carnivore';
-import type { Herbivore } from '../../entities/herbivore';
+import type { Carnivore, Herbivore } from '@/entities/insects';
 import { clamp } from '../../math';
 
 export class BaseCarnivoreBehavior implements InsectBehaviorStrategy<Carnivore> {

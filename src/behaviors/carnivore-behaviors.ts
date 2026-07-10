@@ -1,5 +1,5 @@
 import type { CarnivoreBehaviorId, InsectBehaviorStrategy } from './behavior';
-import type { Carnivore } from '../entities/carnivore';
+import type { Carnivore } from '@/entities/insects';
 import { AggressiveCarnivoreBehavior } from './carnivore/aggressive-carnivore-behavior';
 import { DefaultCarnivoreBehavior } from './carnivore/default-carnivore-behavior';
 import { PassiveCarnivoreBehavior } from './carnivore/passive-carnivore-behavior';

@@ -2,12 +2,12 @@ import type { SimulationConfig } from './config';
 import type { SimContext, TickStats } from './context';
 import { createRng, type Rng } from './rng';
 import { TERRAIN, World } from './world';
-import { Plant } from './entities/plant';
+import { Plant } from './entities/plants/plant';
 // Species imports trigger self-registration in insectRegistry
-import './entities/herbivore';
-import './entities/carnivore';
+import './entities/insects/herbivore';
+import './entities/insects/carnivore';
 import { EntityRepository } from './entities/repository';
-import { insectRegistry } from './entities/insect-registry';
+import { insectRegistry } from './entities/insects/insect-registry';
 import { formatSimulationEvent, type SimulationEvent } from './events';
 
 export interface Snapshot {

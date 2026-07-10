@@ -1,11 +1,11 @@
-import type { SimulationConfig } from '../config';
-import type { SimContext } from '../context';
+import type { SimulationConfig } from '../../config';
+import type { SimContext } from '../../context';
 import {
   CARNIVORE_BEHAVIOR_IDS,
   type CarnivoreBehaviorId,
   resolveCarnivoreBehavior,
 } from '@/behaviors';
-import { TERRAIN } from '../world';
+import { TERRAIN } from '../../world';
 import { insectRegistry } from './insect-registry';
 import { Insect } from './insect';
 
@@ -41,8 +41,6 @@ export class Carnivore extends Insect {
     return new Carnivore(ctx.nextId('c'), cell, 7, this._config, behaviorId);
   }
 
-  // Species parameters
-
   protected get eggStageTicks(): number {
     return this._config.carnivoreEggStageTicks;
   }
@@ -65,8 +63,6 @@ export class Carnivore extends Insect {
     return this._config.carnivoreMoveEnergyCost;
   }
 
-  // Hooks
-
   protected tickExtraLifecycle(ctx: SimContext): void {
     this.ap = clamp(this.ap + ctx.config.carnivoreApRegenPerTick, 0, 10);
   }
@@ -87,8 +83,6 @@ export class Carnivore extends Insect {
   }
 }
 
-// Self-register so the simulator discovers this species without any imports in
-// simulator.ts. New species follow the same pattern in their own files.
 insectRegistry.register({
   kind: 'carnivore',
   behaviorIds: CARNIVORE_BEHAVIOR_IDS,

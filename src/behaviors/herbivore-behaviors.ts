@@ -1,5 +1,5 @@
 import type { HerbivoreBehaviorId, InsectBehaviorStrategy } from './behavior';
-import type { Herbivore } from '../entities/herbivore';
+import type { Herbivore } from '@/entities/insects';
 import { DefaultHerbivoreBehavior } from './herbivore/default-herbivore-behavior';
 import { ForagerHerbivoreBehavior } from './herbivore/forager-herbivore-behavior';
 

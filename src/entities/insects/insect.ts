@@ -1,6 +1,6 @@
-import type { SimContext } from '../context';
-import { TERRAIN } from '../world';
-import { Entity } from './entity';
+import type { SimContext } from '../../context';
+import { TERRAIN } from '../../world';
+import { Entity } from '../entity';
 
 /** Kind is an open string so new species can be registered without editing this union. */
 export type InsectKind = string;
@@ -47,8 +47,6 @@ export abstract class Insect extends Entity {
     this.stepCharge = 0;
   }
 
-  // ── Species-specific parameters ────────────────────────────────────────────
-
   protected abstract get eggStageTicks(): number;
   protected abstract get larvaStageTicks(): number;
   protected abstract get maxAge(): number;
@@ -57,23 +55,15 @@ export abstract class Insect extends Entity {
   protected abstract get dehydrationPenalty(): number;
   protected abstract get moveEnergyCost(): number;
 
-  // ── Extension hooks ─────────────────────────────────────────────────────────
-
-  /** Hook: additional per-tick lifecycle logic (e.g. AP regen for carnivores). */
   protected tickExtraLifecycle(_ctx: SimContext): void {}
 
-  /** Hook: called after a successful move step. */
   protected onAfterMove(_targetCell: number, _ctx: SimContext): void {}
 
-  /** Hook: called when this entity dies. Should record death stats. */
   protected onDeath(_ctx: SimContext): void {}
 
-  /** Hook: extra score contribution per candidate cell in moveRandom. */
   protected extraMoveBias(_cell: number, _ctx: SimContext): number {
     return 0;
   }
-
-  // ── Main tick entry point ───────────────────────────────────────────────────
 
   tick(ctx: SimContext): void {
     this.tickLifecycle(ctx);
@@ -83,8 +73,6 @@ export abstract class Insect extends Entity {
   }
 
   protected abstract tickBehavior(ctx: SimContext): void;
-
-  // ── Lifecycle ───────────────────────────────────────────────────────────────
 
   protected tickLifecycle(ctx: SimContext): void {
     const { world, config } = ctx;
@@ -107,7 +95,6 @@ export abstract class Insect extends Entity {
 
     this.tickExtraLifecycle(ctx);
 
-    // Stage advancement
     if (this.stage === 'egg' && this.stageTicks >= this.eggStageTicks) {
       this.stage = 'larva';
       this.stageTicks = 0;
@@ -116,7 +103,6 @@ export abstract class Insect extends Entity {
       this.stageTicks = 0;
     }
 
-    // Drinking: consume water from an adjacent cell, or suffer dehydration penalty
     const waterNeighbors = world
       .neighbors8(this.cell)
       .filter((neighbor) => world.water[neighbor] >= config.insectDrinkAmount);
@@ -130,7 +116,6 @@ export abstract class Insect extends Entity {
       this.energy -= this.dehydrationPenalty;
     }
 
-    // Starvation and age death
     if (this.energy <= 0) {
       this.starvationTicks += 1;
     } else {
@@ -144,8 +129,6 @@ export abstract class Insect extends Entity {
       this.onDeath(ctx);
     }
   }
-
-  // ── Movement ────────────────────────────────────────────────────────────────
 
   moveToward(targetCell: number, ctx: SimContext): boolean {
     const { world, rng } = ctx;
@@ -218,7 +201,6 @@ export abstract class Insect extends Entity {
     return true;
   }
 
-  /** Move away from a predator at predatorCell. */
   fleeFrom(predatorCell: number, ctx: SimContext): void {
     const { world } = ctx;
     const predator = world.coords(predatorCell);
@@ -227,7 +209,6 @@ export abstract class Insect extends Entity {
 
     if (!options.length) return;
 
-    // Sort descending by distance from predator (farthest first), with anti-backtrack bias
     options.sort((left, right) => {
       const leftPos = world.coords(left);
       const rightPos = world.coords(right);
@@ -246,8 +227,6 @@ export abstract class Insect extends Entity {
     this.lastCell = previousCell;
     ctx.occupied.add(this.cell);
   }
-
-  // ── Utility ─────────────────────────────────────────────────────────────────
 
   findNearestPlant(radius: number, ctx: SimContext): number {
     const origin = ctx.world.coords(this.cell);
