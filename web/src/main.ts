@@ -55,6 +55,11 @@ type SpriteKind =
 
 type SpriteTextures = Record<SpriteKind, Texture>;
 
+type MovingInsect = {
+  cell: number;
+  lastCell: number;
+};
+
 const SPRITE_FILES: Record<SpriteKind, string> = {
   'plant-sprout': '/assets/sprites/plant-sprout.svg',
   'plant-mid': '/assets/sprites/plant-mid.svg',
@@ -581,6 +586,7 @@ class TerrariumScene {
     y: number,
     size: number,
     alpha = 1,
+    rotation = 0,
   ): void {
     const usage = this.spriteUsage[kind];
     const pool = this.spritePools[kind];
@@ -596,6 +602,7 @@ class TerrariumScene {
     sprite.visible = true;
     sprite.position.set(x, y);
     sprite.alpha = alpha;
+    sprite.rotation = rotation;
 
     const textureSize = Math.max(
       1,
@@ -605,6 +612,20 @@ class TerrariumScene {
     sprite.scale.set(scale);
 
     this.spriteUsage[kind] = usage + 1;
+  }
+
+  insectHeadingRotation(insect: MovingInsect): number {
+    if (insect.lastCell < 0 || insect.lastCell === insect.cell) {
+      return 0;
+    }
+
+    const current = this.simulator.world.coords(insect.cell);
+    const previous = this.simulator.world.coords(insect.lastCell);
+    const dx = current.x - previous.x;
+    const dy = current.y - previous.y;
+
+    // Sprite art is authored facing up. Convert movement vector to that basis.
+    return Math.atan2(dy, dx) + Math.PI / 2;
   }
 
   endSpriteFrame(): void {
@@ -680,9 +701,25 @@ class TerrariumScene {
       if (herbivore.stage === 'larva') {
         this.placeSprite('herbivore-larva', x, y, this.baseCellSize * 0.5);
       } else if (herbivore.behaviorId === 'forager') {
-        this.placeSprite('herbivore-forager', x, y, this.baseCellSize * 0.78);
+        const rotation = this.insectHeadingRotation(herbivore);
+        this.placeSprite(
+          'herbivore-forager',
+          x,
+          y,
+          this.baseCellSize * 0.78,
+          1,
+          rotation,
+        );
       } else {
-        this.placeSprite('herbivore-default', x, y, this.baseCellSize * 0.78);
+        const rotation = this.insectHeadingRotation(herbivore);
+        this.placeSprite(
+          'herbivore-default',
+          x,
+          y,
+          this.baseCellSize * 0.78,
+          1,
+          rotation,
+        );
       }
     }
   }
@@ -703,16 +740,35 @@ class TerrariumScene {
       if (carnivore.stage === 'larva') {
         this.placeSprite('carnivore-larva', x, y, this.baseCellSize * 0.54);
       } else if (carnivore.behaviorId === 'aggressive') {
+        const rotation = this.insectHeadingRotation(carnivore);
         this.placeSprite(
           'carnivore-aggressive',
           x,
           y,
           this.baseCellSize * 0.86,
+          1,
+          rotation,
         );
       } else if (carnivore.behaviorId === 'passive') {
-        this.placeSprite('carnivore-passive', x, y, this.baseCellSize * 0.86);
+        const rotation = this.insectHeadingRotation(carnivore);
+        this.placeSprite(
+          'carnivore-passive',
+          x,
+          y,
+          this.baseCellSize * 0.86,
+          1,
+          rotation,
+        );
       } else {
-        this.placeSprite('carnivore-default', x, y, this.baseCellSize * 0.86);
+        const rotation = this.insectHeadingRotation(carnivore);
+        this.placeSprite(
+          'carnivore-default',
+          x,
+          y,
+          this.baseCellSize * 0.86,
+          1,
+          rotation,
+        );
       }
     }
   }
