@@ -13,6 +13,8 @@
     "start": "node dist/simulate.mjs",
     "presimulate": "pnpm build",
     "simulate": "node dist/simulate.mjs --record-csv runs/latest.csv --record-json runs/latest.json.gz",
+    "prestream": "pnpm build",
+    "stream": "node dist/simulate.mjs --stream",
     "presimulate:sweep": "pnpm build",
     "simulate:sweep": "node dist/simulate.mjs --sweep",
     "prereplay": "pnpm build",
