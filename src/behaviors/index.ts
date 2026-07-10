@@ -1,7 +1,5 @@
 export * from './behavior';
 export * from './behavior-factory';
-export * from './herbivore-behaviors';
-export * from './carnivore-behaviors';
 
 export * from './herbivore/base-herbivore-behavior';
 export * from './herbivore/default-herbivore-behavior';

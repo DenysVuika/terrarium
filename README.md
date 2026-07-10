@@ -517,20 +517,14 @@ No registration mechanism is needed for plants because the simulator already pro
 
 ### **Architecture Notes: Strategy + Repository + Events**
 
-The entity architecture separates concerns into dedicated modules:
+The entity architecture separates concerns into a few stable boundaries:
 
 - Concrete implementations live under `src/entities/plants/` and `src/entities/insects/`.
 - Consumers can use the mapped barrels `@/entities/plants` and `@/entities/insects` for extension code instead of deep relative paths.
-- `src/entities/insects/insect-registry.ts`: singleton registry — the single integration point for new species.
-- `src/entities/repository.ts`: keyed insect storage (`Map<kind, Insect[]>`), typed getters for built-in species, population counts and cleanup.
-- `src/events.ts`: typed simulation events and string formatting for replay/timeline output.
-- `src/behaviors/behavior.ts`: strategy interface, behavior id types, and exported id arrays for random selection.
-- `src/behaviors/index.ts`: barrel exports for behavior ids, resolvers, and behavior classes.
-- `src/behaviors/herbivore/`: herbivore strategy class implementations.
-- `src/behaviors/carnivore/`: carnivore strategy class implementations.
-- `src/behaviors/herbivore-behaviors.ts`: herbivore behavior registry and lookup.
-- `src/behaviors/carnivore-behaviors.ts`: carnivore behavior registry and lookup.
-- `src/behaviors/behavior-factory.ts`: central strategy resolver API consumed by entity classes.
+- Plants and insects own lifecycle and mutable state.
+- Behavior strategies own decision-making policy and can be swapped without rewriting lifecycle plumbing.
+- Species registration is the integration point for adding new insect types.
+- Repository and event layers keep collection management and replay/timeline output outside individual entities.
 
 This keeps lifecycle/state in entities and policy logic in strategy modules, enabling easier experimentation without rewriting core lifecycle plumbing.
 
@@ -569,27 +563,6 @@ Replay symbol legend:
 
 - ASCII: `.` soil, `~` water, `:` sand, `[space]` empty, `*` plant, `h` herbivore, `C` carnivore, `o` egg
 - Emoji: `🟫` soil, `🟦` water, `🟨` sand, `⬛` empty, `🌿` plant, `🐛` herbivore, `🦂` carnivore, `🥚` egg
-
-### **Implementation Notes**
-
-- Source files:
-  - `src/world.ts`: grid generation, terrain patches, per-cell resources
-  - `src/simulator.ts`: game loop, resources, entities, combat, win/lose checks
-  - `src/simulate.ts`: CLI entry point, CSV/JSON recording, interactive replay
-  - `src/entities/plants/plant.ts`: built-in plant implementation
-  - `src/entities/insects/insect.ts`: shared insect lifecycle and movement base class
-  - `src/entities/insects/insect-registry.ts`: species registration and seeding contract
-  - `src/entities/insects/herbivore.ts`: built-in herbivore species and self-registration
-  - `src/entities/insects/carnivore.ts`: built-in carnivore species and self-registration
-  - `src/entities/repository.ts`: entity collection management helpers
-  - `src/events.ts`: typed replay/event timeline primitives
-  - `src/behaviors/behavior.ts`: strategy interfaces and behavior ids
-  - `src/behaviors/index.ts`: behavior barrel exports used by entities and config
-  - `src/behaviors/behavior-factory.ts`: runtime behavior selection facade
-  - `src/behaviors/herbivore/`: herbivore strategy class implementations
-  - `src/behaviors/carnivore/`: carnivore strategy class implementations
-  - `src/behaviors/herbivore-behaviors.ts`: herbivore behavior registry and lookup
-  - `src/behaviors/carnivore-behaviors.ts`: carnivore behavior registry and lookup
 
 ### **Recording Format Guidance**
 
