@@ -5,6 +5,7 @@
   "packageManager": "pnpm@11.9.0",
   "type": "module",
   "description": "Prototype ecosystem simulation for terrarium mechanics",
+  "license": "Apache-2.0",
   "scripts": {
     "build": "tsdown",
     "build:watch": "tsdown --watch",
