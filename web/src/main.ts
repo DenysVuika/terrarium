@@ -1,4 +1,11 @@
-import { Application, Container, Graphics } from 'pixi.js';
+import {
+  Application,
+  Assets,
+  Container,
+  Graphics,
+  Sprite,
+  Texture,
+} from 'pixi.js';
 import { getDefaultConfig } from '../../src/config';
 import { Simulator } from '../../src/simulator';
 import { TERRAIN } from '../../src/world';
@@ -18,17 +25,75 @@ type SimulationStatus = {
   events: string;
 };
 
+type SpriteKind =
+  | 'plant-sprout'
+  | 'plant-mid'
+  | 'plant-mature'
+  | 'plant-wilted'
+  | 'herbivore-default'
+  | 'herbivore-forager'
+  | 'herbivore-larva'
+  | 'carnivore-default'
+  | 'carnivore-aggressive'
+  | 'carnivore-passive'
+  | 'carnivore-larva'
+  | 'egg-herbivore'
+  | 'egg-carnivore';
+
+type SpriteTextures = Record<SpriteKind, Texture>;
+
+const SPRITE_FILES: Record<SpriteKind, string> = {
+  'plant-sprout': '/assets/sprites/plant-sprout.svg',
+  'plant-mid': '/assets/sprites/plant-mid.svg',
+  'plant-mature': '/assets/sprites/plant-mature.svg',
+  'plant-wilted': '/assets/sprites/plant-wilted.svg',
+  'herbivore-default': '/assets/sprites/herbivore-default.svg',
+  'herbivore-forager': '/assets/sprites/herbivore-forager.svg',
+  'herbivore-larva': '/assets/sprites/herbivore-larva.svg',
+  'carnivore-default': '/assets/sprites/carnivore-default.svg',
+  'carnivore-aggressive': '/assets/sprites/carnivore-aggressive.svg',
+  'carnivore-passive': '/assets/sprites/carnivore-passive.svg',
+  'carnivore-larva': '/assets/sprites/carnivore-larva.svg',
+  'egg-herbivore': '/assets/sprites/egg-herbivore.svg',
+  'egg-carnivore': '/assets/sprites/egg-carnivore.svg',
+};
+
+const SPRITE_KINDS = Object.keys(SPRITE_FILES) as SpriteKind[];
+
+function createKindRecord<T>(
+  factory: (kind: SpriteKind) => T,
+): Record<SpriteKind, T> {
+  const record = {} as Record<SpriteKind, T>;
+  for (const kind of SPRITE_KINDS) {
+    record[kind] = factory(kind);
+  }
+  return record;
+}
+
+async function loadSpriteTextures(): Promise<SpriteTextures> {
+  const textures = {} as SpriteTextures;
+
+  for (const kind of SPRITE_KINDS) {
+    textures[kind] = (await Assets.load(SPRITE_FILES[kind])) as Texture;
+  }
+
+  return textures;
+}
+
 class TerrariumScene {
   app: Application;
   simulator: Simulator;
+  textures: SpriteTextures;
   worldContainer: Container;
   terrainLayer: Graphics;
   waterOverlayLayer: Graphics;
   atmosphereLayer: Graphics;
-  plantLayer: Graphics;
-  herbivoreLayer: Graphics;
-  carnivoreLayer: Graphics;
-  eggLayer: Graphics;
+  plantSpriteLayer: Container;
+  herbivoreSpriteLayer: Container;
+  carnivoreSpriteLayer: Container;
+  eggSpriteLayer: Container;
+  spritePools: Record<SpriteKind, Sprite[]>;
+  spriteUsage: Record<SpriteKind, number>;
   size: number;
   baseCellSize: number;
   zoom: number;
@@ -45,9 +110,14 @@ class TerrariumScene {
   visualTime: number;
   onStatus: (status: SimulationStatus) => void;
 
-  constructor(app: Application, onStatus: (status: SimulationStatus) => void) {
+  constructor(
+    app: Application,
+    onStatus: (status: SimulationStatus) => void,
+    textures: SpriteTextures,
+  ) {
     this.app = app;
     this.onStatus = onStatus;
+    this.textures = textures;
     this.simulator = this.createSimulator();
     this.size = this.simulator.world.size;
     this.baseCellSize = this.computeCellSize();
@@ -64,21 +134,24 @@ class TerrariumScene {
     this.elapsed = 0;
     this.visualTime = 0;
 
+    this.spritePools = createKindRecord(() => []);
+    this.spriteUsage = createKindRecord(() => 0);
+
     this.worldContainer = new Container();
     this.terrainLayer = new Graphics();
     this.waterOverlayLayer = new Graphics();
     this.atmosphereLayer = new Graphics();
-    this.plantLayer = new Graphics();
-    this.herbivoreLayer = new Graphics();
-    this.carnivoreLayer = new Graphics();
-    this.eggLayer = new Graphics();
+    this.plantSpriteLayer = new Container();
+    this.herbivoreSpriteLayer = new Container();
+    this.carnivoreSpriteLayer = new Container();
+    this.eggSpriteLayer = new Container();
 
     this.worldContainer.addChild(this.terrainLayer);
     this.worldContainer.addChild(this.waterOverlayLayer);
-    this.worldContainer.addChild(this.plantLayer);
-    this.worldContainer.addChild(this.herbivoreLayer);
-    this.worldContainer.addChild(this.carnivoreLayer);
-    this.worldContainer.addChild(this.eggLayer);
+    this.worldContainer.addChild(this.plantSpriteLayer);
+    this.worldContainer.addChild(this.herbivoreSpriteLayer);
+    this.worldContainer.addChild(this.carnivoreSpriteLayer);
+    this.worldContainer.addChild(this.eggSpriteLayer);
     this.worldContainer.addChild(this.atmosphereLayer);
     this.app.stage.addChild(this.worldContainer);
 
@@ -179,7 +252,10 @@ class TerrariumScene {
     if (worldSize <= viewHeight) {
       this.cameraY = Math.round((viewHeight - worldSize) / 2);
     } else {
-      this.cameraY = Math.min(0, Math.max(viewHeight - worldSize, this.cameraY));
+      this.cameraY = Math.min(
+        0,
+        Math.max(viewHeight - worldSize, this.cameraY),
+      );
     }
   }
 
@@ -242,6 +318,61 @@ class TerrariumScene {
     this.drawDynamicLayers();
   }
 
+  layerForKind(kind: SpriteKind): Container {
+    if (kind.startsWith('plant-')) return this.plantSpriteLayer;
+    if (kind.startsWith('herbivore-')) return this.herbivoreSpriteLayer;
+    if (kind.startsWith('carnivore-')) return this.carnivoreSpriteLayer;
+    return this.eggSpriteLayer;
+  }
+
+  beginSpriteFrame(): void {
+    for (const kind of SPRITE_KINDS) {
+      this.spriteUsage[kind] = 0;
+    }
+  }
+
+  placeSprite(
+    kind: SpriteKind,
+    x: number,
+    y: number,
+    size: number,
+    alpha = 1,
+  ): void {
+    const usage = this.spriteUsage[kind];
+    const pool = this.spritePools[kind];
+    let sprite = pool[usage];
+
+    if (!sprite) {
+      sprite = new Sprite(this.textures[kind]);
+      sprite.anchor.set(0.5);
+      this.layerForKind(kind).addChild(sprite);
+      pool.push(sprite);
+    }
+
+    sprite.visible = true;
+    sprite.position.set(x, y);
+    sprite.alpha = alpha;
+
+    const textureSize = Math.max(
+      1,
+      Math.max(sprite.texture.width, sprite.texture.height),
+    );
+    const scale = size / textureSize;
+    sprite.scale.set(scale);
+
+    this.spriteUsage[kind] = usage + 1;
+  }
+
+  endSpriteFrame(): void {
+    for (const kind of SPRITE_KINDS) {
+      const used = this.spriteUsage[kind];
+      const pool = this.spritePools[kind];
+      for (let index = used; index < pool.length; index += 1) {
+        pool[index].visible = false;
+      }
+    }
+  }
+
   drawTerrain(): void {
     const terrain = this.simulator.world.terrain;
     const soilColor = 0x536b2f;
@@ -270,45 +401,26 @@ class TerrariumScene {
   }
 
   drawPlants(): void {
-    this.plantLayer.clear();
     const centerOffset = this.baseCellSize * 0.5;
 
     for (const plant of this.simulator.entities.plants.values()) {
       const x = (plant.cell % this.size) * this.baseCellSize + centerOffset;
-      const y = Math.floor(plant.cell / this.size) * this.baseCellSize + centerOffset;
+      const y =
+        Math.floor(plant.cell / this.size) * this.baseCellSize + centerOffset;
 
-      if (plant.growth < 30) {
-        this.plantLayer.circle(x, y, Math.max(1, this.baseCellSize * 0.18));
-        this.plantLayer.fill({ color: plant.wilted ? 0x6e7553 : 0x7fe56b });
+      if (plant.wilted) {
+        this.placeSprite('plant-wilted', x, y, this.baseCellSize * 0.9, 0.95);
+      } else if (plant.growth < 30) {
+        this.placeSprite('plant-sprout', x, y, this.baseCellSize * 0.62);
       } else if (plant.growth < 70) {
-        const radius = Math.max(1, this.baseCellSize * 0.28);
-        this.plantLayer.roundRect(
-          x - radius,
-          y - radius,
-          radius * 2,
-          radius * 2,
-          Math.max(1, radius * 0.35),
-        );
-        this.plantLayer.fill({ color: plant.wilted ? 0x6f6d47 : 0x66c95e });
+        this.placeSprite('plant-mid', x, y, this.baseCellSize * 0.82);
       } else {
-        const leafRadius = Math.max(1, this.baseCellSize * 0.2);
-        const leafColor = plant.wilted ? 0x7a6948 : 0x5ab451;
-        this.plantLayer.circle(x - leafRadius, y, leafRadius);
-        this.plantLayer.fill({ color: leafColor });
-        this.plantLayer.circle(x + leafRadius, y, leafRadius);
-        this.plantLayer.fill({ color: leafColor });
-        this.plantLayer.circle(x, y - leafRadius, leafRadius);
-        this.plantLayer.fill({ color: leafColor });
-        this.plantLayer.circle(x, y + leafRadius, leafRadius);
-        this.plantLayer.fill({ color: leafColor });
-        this.plantLayer.circle(x, y, Math.max(1, this.baseCellSize * 0.14));
-        this.plantLayer.fill({ color: plant.wilted ? 0x8a7848 : 0x9cf873 });
+        this.placeSprite('plant-mature', x, y, this.baseCellSize * 1.02);
       }
     }
   }
 
   drawHerbivores(): void {
-    this.herbivoreLayer.clear();
     const centerOffset = this.baseCellSize * 0.5;
 
     for (const herbivore of this.simulator.entities.herbivores) {
@@ -317,42 +429,21 @@ class TerrariumScene {
       }
 
       const x = (herbivore.cell % this.size) * this.baseCellSize + centerOffset;
-      const y = Math.floor(herbivore.cell / this.size) * this.baseCellSize + centerOffset;
-      const isLarva = herbivore.stage === 'larva';
-      const radius = Math.max(1, this.baseCellSize * (isLarva ? 0.2 : 0.3));
-      const color = herbivore.behaviorId === 'forager' ? 0x8efeff : 0x65d7c8;
+      const y =
+        Math.floor(herbivore.cell / this.size) * this.baseCellSize +
+        centerOffset;
 
-      if (herbivore.behaviorId === 'forager') {
-        this.herbivoreLayer.poly([
-          x,
-          y - radius,
-          x + radius,
-          y,
-          x,
-          y + radius,
-          x - radius,
-          y,
-        ]);
-        this.herbivoreLayer.fill({ color });
+      if (herbivore.stage === 'larva') {
+        this.placeSprite('herbivore-larva', x, y, this.baseCellSize * 0.5);
+      } else if (herbivore.behaviorId === 'forager') {
+        this.placeSprite('herbivore-forager', x, y, this.baseCellSize * 0.78);
       } else {
-        this.herbivoreLayer.poly([
-          x,
-          y - radius,
-          x + radius,
-          y + radius,
-          x - radius,
-          y + radius,
-        ]);
-        this.herbivoreLayer.fill({ color });
+        this.placeSprite('herbivore-default', x, y, this.baseCellSize * 0.78);
       }
-
-      this.herbivoreLayer.circle(x, y, Math.max(1, radius * 0.28));
-      this.herbivoreLayer.fill({ color: 0xd8fff8 });
     }
   }
 
   drawCarnivores(): void {
-    this.carnivoreLayer.clear();
     const centerOffset = this.baseCellSize * 0.5;
 
     for (const carnivore of this.simulator.entities.carnivores) {
@@ -361,51 +452,29 @@ class TerrariumScene {
       }
 
       const x = (carnivore.cell % this.size) * this.baseCellSize + centerOffset;
-      const y = Math.floor(carnivore.cell / this.size) * this.baseCellSize + centerOffset;
-      const isLarva = carnivore.stage === 'larva';
-      const radius = Math.max(1, this.baseCellSize * (isLarva ? 0.22 : 0.34));
+      const y =
+        Math.floor(carnivore.cell / this.size) * this.baseCellSize +
+        centerOffset;
 
-      if (carnivore.behaviorId === 'aggressive') {
-        this.carnivoreLayer.poly([
+      if (carnivore.stage === 'larva') {
+        this.placeSprite('carnivore-larva', x, y, this.baseCellSize * 0.54);
+      } else if (carnivore.behaviorId === 'aggressive') {
+        this.placeSprite(
+          'carnivore-aggressive',
           x,
-          y - radius,
-          x + radius * 0.8,
-          y - radius * 0.2,
-          x + radius,
-          y + radius * 0.85,
-          x,
-          y + radius * 0.45,
-          x - radius,
-          y + radius * 0.85,
-          x - radius * 0.8,
-          y - radius * 0.2,
-        ]);
-        this.carnivoreLayer.fill({ color: 0xff6f64 });
+          y,
+          this.baseCellSize * 0.86,
+        );
       } else if (carnivore.behaviorId === 'passive') {
-        this.carnivoreLayer.circle(x, y, radius);
-        this.carnivoreLayer.fill({ color: 0xffaa77 });
-        this.carnivoreLayer.circle(x, y, Math.max(1, radius * 0.55));
-        this.carnivoreLayer.fill({ color: 0x7a2e24 });
+        this.placeSprite('carnivore-passive', x, y, this.baseCellSize * 0.86);
       } else {
-        this.carnivoreLayer.poly([
-          x,
-          y - radius,
-          x + radius,
-          y + radius,
-          x - radius,
-          y + radius,
-        ]);
-        this.carnivoreLayer.fill({ color: 0xff7b6b });
+        this.placeSprite('carnivore-default', x, y, this.baseCellSize * 0.86);
       }
-
-      this.carnivoreLayer.circle(x, y, Math.max(1, radius * 0.16));
-      this.carnivoreLayer.fill({ color: 0xffdfda });
     }
   }
 
   drawEggs(): void {
-    this.eggLayer.clear();
-    const radius = Math.max(1, this.baseCellSize * 0.2);
+    const radiusSize = this.baseCellSize * 0.52;
     const centerOffset = this.baseCellSize * 0.5;
 
     for (const herbivore of this.simulator.entities.herbivores) {
@@ -414,11 +483,10 @@ class TerrariumScene {
       }
 
       const x = (herbivore.cell % this.size) * this.baseCellSize + centerOffset;
-      const y = Math.floor(herbivore.cell / this.size) * this.baseCellSize + centerOffset;
-      this.eggLayer.circle(x, y, radius);
-      this.eggLayer.fill({ color: 0xf9f3d6 });
-      this.eggLayer.circle(x, y, Math.max(1, radius * 0.55));
-      this.eggLayer.fill({ color: 0x6fd5bd });
+      const y =
+        Math.floor(herbivore.cell / this.size) * this.baseCellSize +
+        centerOffset;
+      this.placeSprite('egg-herbivore', x, y, radiusSize);
     }
 
     for (const carnivore of this.simulator.entities.carnivores) {
@@ -427,11 +495,10 @@ class TerrariumScene {
       }
 
       const x = (carnivore.cell % this.size) * this.baseCellSize + centerOffset;
-      const y = Math.floor(carnivore.cell / this.size) * this.baseCellSize + centerOffset;
-      this.eggLayer.circle(x, y, radius);
-      this.eggLayer.fill({ color: 0xf9f3d6 });
-      this.eggLayer.circle(x, y, Math.max(1, radius * 0.55));
-      this.eggLayer.fill({ color: 0xff8d83 });
+      const y =
+        Math.floor(carnivore.cell / this.size) * this.baseCellSize +
+        centerOffset;
+      this.placeSprite('egg-carnivore', x, y, radiusSize);
     }
   }
 
@@ -481,10 +548,12 @@ class TerrariumScene {
   }
 
   drawDynamicLayers(): void {
+    this.beginSpriteFrame();
     this.drawPlants();
     this.drawHerbivores();
     this.drawCarnivores();
     this.drawEggs();
+    this.endSpriteFrame();
     this.drawWaterAndAtmosphere();
   }
 
@@ -602,9 +671,9 @@ function createHud(scene: TerrariumScene): void {
     <dl id="stats" class="hud-stats" aria-live="polite"></dl>
     <p id="events" class="hud-events"></p>
     <ul class="hud-legend" aria-label="Entity legend">
-      <li><span class="dot plant"></span>Plants (growth stages)</li>
-      <li><span class="dot herbivore"></span>Herbivores (default/forager)</li>
-      <li><span class="dot carnivore"></span>Carnivores (default/aggressive/passive)</li>
+      <li><span class="dot plant"></span>Plants (sprite stages)</li>
+      <li><span class="dot herbivore"></span>Herbivores: default, forager, larva</li>
+      <li><span class="dot carnivore"></span>Carnivores: default, aggressive, passive, larva</li>
       <li><span class="dot egg"></span>Eggs</li>
     </ul>
   `;
@@ -693,6 +762,7 @@ void (async () => {
 
   container.appendChild(app.canvas);
 
-  const scene = new TerrariumScene(app, () => undefined);
+  const textures = await loadSpriteTextures();
+  const scene = new TerrariumScene(app, () => undefined, textures);
   createHud(scene);
 })();
