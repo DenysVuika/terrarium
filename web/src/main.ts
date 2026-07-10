@@ -28,7 +28,15 @@ class TerrariumScene {
   carnivoreLayer: Graphics;
   eggLayer: Graphics;
   size: number;
-  cellSize: number;
+  baseCellSize: number;
+  zoom: number;
+  minZoom: number;
+  maxZoom: number;
+  cameraX: number;
+  cameraY: number;
+  dragging: boolean;
+  dragLastX: number;
+  dragLastY: number;
   ticksPerSecond: number;
   running: boolean;
   elapsed: number;
@@ -39,7 +47,15 @@ class TerrariumScene {
     this.onStatus = onStatus;
     this.simulator = this.createSimulator();
     this.size = this.simulator.world.size;
-    this.cellSize = this.computeCellSize();
+    this.baseCellSize = this.computeCellSize();
+    this.zoom = 2.2;
+    this.minZoom = 0.5;
+    this.maxZoom = 8;
+    this.cameraX = 0;
+    this.cameraY = 0;
+    this.dragging = false;
+    this.dragLastX = 0;
+    this.dragLastY = 0;
     this.ticksPerSecond = 8;
     this.running = true;
     this.elapsed = 0;
@@ -58,6 +74,7 @@ class TerrariumScene {
     this.worldContainer.addChild(this.eggLayer);
     this.app.stage.addChild(this.worldContainer);
 
+    this.setupCameraInteractions();
     this.resize();
     this.drawTerrain();
     this.drawDynamicLayers();
@@ -74,21 +91,147 @@ class TerrariumScene {
   }
 
   computeCellSize(): number {
-    const viewportPadding = 32;
-    const maxWidth = Math.max(280, window.innerWidth - viewportPadding * 2);
-    const maxHeight = Math.max(280, window.innerHeight - 220);
+    const maxWidth = Math.max(220, this.app.screen.width - 28);
+    const maxHeight = Math.max(220, this.app.screen.height - 28);
     const maxGridPixels = Math.min(maxWidth, maxHeight);
     return Math.max(1, Math.floor(maxGridPixels / this.size));
   }
 
-  resize(): void {
-    this.cellSize = this.computeCellSize();
-    const gridPixels = this.size * this.cellSize;
+  setupCameraInteractions(): void {
+    this.app.stage.eventMode = 'static';
 
-    this.worldContainer.position.set(
-      Math.round((this.app.screen.width - gridPixels) / 2),
-      Math.round((this.app.screen.height - gridPixels) / 2),
+    this.app.stage.on('pointerdown', (event) => {
+      this.dragging = true;
+      this.dragLastX = event.global.x;
+      this.dragLastY = event.global.y;
+    });
+
+    this.app.stage.on('pointermove', (event) => {
+      if (!this.dragging) {
+        return;
+      }
+
+      const currentX = event.global.x;
+      const currentY = event.global.y;
+      const deltaX = currentX - this.dragLastX;
+      const deltaY = currentY - this.dragLastY;
+
+      this.dragLastX = currentX;
+      this.dragLastY = currentY;
+
+      this.cameraX += deltaX;
+      this.cameraY += deltaY;
+      this.clampCamera();
+      this.applyWorldTransform();
+    });
+
+    const stopDrag = (): void => {
+      this.dragging = false;
+    };
+
+    this.app.stage.on('pointerup', stopDrag);
+    this.app.stage.on('pointerupoutside', stopDrag);
+    this.app.stage.on('pointercancel', stopDrag);
+
+    this.app.canvas.addEventListener(
+      'wheel',
+      (event) => {
+        event.preventDefault();
+
+        const rect = this.app.canvas.getBoundingClientRect();
+        const localX = event.clientX - rect.left;
+        const localY = event.clientY - rect.top;
+        const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
+        this.zoomAt(localX, localY, factor);
+      },
+      { passive: false },
     );
+  }
+
+  applyWorldTransform(): void {
+    this.worldContainer.position.set(this.cameraX, this.cameraY);
+    this.worldContainer.scale.set(this.zoom);
+  }
+
+  worldSizePx(): number {
+    return this.size * this.baseCellSize * this.zoom;
+  }
+
+  clampCamera(): void {
+    const worldSize = this.worldSizePx();
+    const viewWidth = this.app.screen.width;
+    const viewHeight = this.app.screen.height;
+
+    if (worldSize <= viewWidth) {
+      this.cameraX = Math.round((viewWidth - worldSize) / 2);
+    } else {
+      this.cameraX = Math.min(0, Math.max(viewWidth - worldSize, this.cameraX));
+    }
+
+    if (worldSize <= viewHeight) {
+      this.cameraY = Math.round((viewHeight - worldSize) / 2);
+    } else {
+      this.cameraY = Math.min(
+        0,
+        Math.max(viewHeight - worldSize, this.cameraY),
+      );
+    }
+  }
+
+  zoomAt(screenX: number, screenY: number, factor: number): void {
+    const previousZoom = this.zoom;
+    const nextZoom = Math.max(
+      this.minZoom,
+      Math.min(this.maxZoom, previousZoom * factor),
+    );
+
+    if (Math.abs(nextZoom - previousZoom) < 0.001) {
+      return;
+    }
+
+    const worldX = (screenX - this.cameraX) / previousZoom;
+    const worldY = (screenY - this.cameraY) / previousZoom;
+
+    this.zoom = nextZoom;
+    this.cameraX = screenX - worldX * this.zoom;
+    this.cameraY = screenY - worldY * this.zoom;
+
+    this.clampCamera();
+    this.applyWorldTransform();
+  }
+
+  resetView(): void {
+    this.zoom = 2.2;
+    this.centerCamera();
+    this.applyWorldTransform();
+  }
+
+  centerCamera(): void {
+    const worldSize = this.worldSizePx();
+    this.cameraX = Math.round((this.app.screen.width - worldSize) / 2);
+    this.cameraY = Math.round((this.app.screen.height - worldSize) / 2);
+    this.clampCamera();
+  }
+
+  resize(): void {
+    const previousScreenCenterX = this.app.screen.width / 2;
+    const previousScreenCenterY = this.app.screen.height / 2;
+    const worldCenterX = (previousScreenCenterX - this.cameraX) / this.zoom;
+    const worldCenterY = (previousScreenCenterY - this.cameraY) / this.zoom;
+
+    this.baseCellSize = this.computeCellSize();
+    this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom));
+
+    this.cameraX = this.app.screen.width / 2 - worldCenterX * this.zoom;
+    this.cameraY = this.app.screen.height / 2 - worldCenterY * this.zoom;
+
+    if (!Number.isFinite(this.cameraX) || !Number.isFinite(this.cameraY)) {
+      this.centerCamera();
+    } else {
+      this.clampCamera();
+    }
+
+    this.applyWorldTransform();
 
     this.drawTerrain();
     this.drawDynamicLayers();
@@ -105,8 +248,8 @@ class TerrariumScene {
     this.terrainLayer.clear();
 
     for (let index = 0; index < length; index += 1) {
-      const x = (index % this.size) * this.cellSize;
-      const y = Math.floor(index / this.size) * this.cellSize;
+      const x = (index % this.size) * this.baseCellSize;
+      const y = Math.floor(index / this.size) * this.baseCellSize;
       const terrainType = terrain[index];
       const color =
         terrainType === TERRAIN.SOIL
@@ -117,19 +260,19 @@ class TerrariumScene {
               ? sandColor
               : emptyColor;
 
-      this.terrainLayer.rect(x, y, this.cellSize, this.cellSize);
+      this.terrainLayer.rect(x, y, this.baseCellSize, this.baseCellSize);
       this.terrainLayer.fill({ color });
     }
   }
 
   drawPlants(cells: number[]): void {
     this.plantLayer.clear();
-    const inset = Math.max(0, Math.floor(this.cellSize * 0.15));
-    const size = Math.max(1, this.cellSize - inset * 2);
+    const inset = Math.max(0, Math.floor(this.baseCellSize * 0.15));
+    const size = Math.max(1, this.baseCellSize - inset * 2);
 
     for (const cell of cells) {
-      const x = (cell % this.size) * this.cellSize + inset;
-      const y = Math.floor(cell / this.size) * this.cellSize + inset;
+      const x = (cell % this.size) * this.baseCellSize + inset;
+      const y = Math.floor(cell / this.size) * this.baseCellSize + inset;
       this.plantLayer.rect(x, y, size, size);
       this.plantLayer.fill({ color: 0x69d25b });
     }
@@ -137,12 +280,12 @@ class TerrariumScene {
 
   drawInsects(cells: number[], color: number, layer: Graphics): void {
     layer.clear();
-    const radius = Math.max(1, this.cellSize * 0.36);
-    const centerOffset = this.cellSize * 0.5;
+    const radius = Math.max(1, this.baseCellSize * 0.36);
+    const centerOffset = this.baseCellSize * 0.5;
 
     for (const cell of cells) {
-      const x = (cell % this.size) * this.cellSize + centerOffset;
-      const y = Math.floor(cell / this.size) * this.cellSize + centerOffset;
+      const x = (cell % this.size) * this.baseCellSize + centerOffset;
+      const y = Math.floor(cell / this.size) * this.baseCellSize + centerOffset;
       layer.circle(x, y, radius);
       layer.fill({ color });
     }
@@ -150,12 +293,12 @@ class TerrariumScene {
 
   drawEggs(cells: number[]): void {
     this.eggLayer.clear();
-    const radius = Math.max(1, this.cellSize * 0.18);
-    const centerOffset = this.cellSize * 0.5;
+    const radius = Math.max(1, this.baseCellSize * 0.18);
+    const centerOffset = this.baseCellSize * 0.5;
 
     for (const cell of cells) {
-      const x = (cell % this.size) * this.cellSize + centerOffset;
-      const y = Math.floor(cell / this.size) * this.cellSize + centerOffset;
+      const x = (cell % this.size) * this.baseCellSize + centerOffset;
+      const y = Math.floor(cell / this.size) * this.baseCellSize + centerOffset;
       this.eggLayer.circle(x, y, radius);
       this.eggLayer.fill({ color: 0xf9f3d6 });
     }
@@ -223,6 +366,7 @@ class TerrariumScene {
     this.size = this.simulator.world.size;
     this.elapsed = 0;
     this.running = true;
+    this.resetView();
     this.resize();
     this.drawDynamicLayers();
     this.pushStatus();
@@ -267,12 +411,14 @@ function createHud(scene: TerrariumScene): void {
       <button id="play-pause" type="button">Pause</button>
       <button id="step" type="button">Step</button>
       <button id="reset" type="button">Reset</button>
+      <button id="reset-view" type="button">Reset View</button>
       <label for="speed">
         Speed
         <input id="speed" type="range" min="1" max="40" step="1" value="8" />
       </label>
       <output id="speed-value">8 tps</output>
     </div>
+    <p class="hud-tip">Tip: drag to pan, mouse wheel or trackpad scroll to zoom.</p>
     <dl id="stats" class="hud-stats" aria-live="polite"></dl>
     <p id="events" class="hud-events"></p>
     <ul class="hud-legend" aria-label="Entity legend">
@@ -288,6 +434,9 @@ function createHud(scene: TerrariumScene): void {
   ) as HTMLButtonElement;
   const stepButton = document.getElementById('step') as HTMLButtonElement;
   const resetButton = document.getElementById('reset') as HTMLButtonElement;
+  const resetViewButton = document.getElementById(
+    'reset-view',
+  ) as HTMLButtonElement;
   const speedInput = document.getElementById('speed') as HTMLInputElement;
   const speedValue = document.getElementById(
     'speed-value',
@@ -309,6 +458,10 @@ function createHud(scene: TerrariumScene): void {
   resetButton.addEventListener('click', () => {
     scene.reset();
     playPauseButton.textContent = 'Pause';
+  });
+
+  resetViewButton.addEventListener('click', () => {
+    scene.resetView();
   });
 
   speedInput.addEventListener('input', () => {
@@ -355,7 +508,7 @@ void (async () => {
   await app.init({
     background: '#11161f',
     antialias: false,
-    resizeTo: window,
+    resizeTo: container,
   });
 
   container.appendChild(app.canvas);
