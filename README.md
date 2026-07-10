@@ -414,7 +414,7 @@ The simulator is designed so a new insect type can be contributed without touchi
 | Step | File to create | What goes there |
 | ---: | --- | --- |
 | 1 | `src/entities/my-insect.ts` | Class extending `Insect`, lifecycle parameters, hooks |
-| 2 | `src/entities/my-insect-behaviors.ts` | One or more `InsectBehaviorStrategy<MyInsect>` implementations + `getMyInsectBehavior(id)` factory |
+| 2 | `src/behaviors/my-insect/` + `src/entities/my-insect-behaviors.ts` | Strategy class implementations in `src/behaviors/my-insect/` and a small behavior registry/factory module in `src/entities/my-insect-behaviors.ts` |
 | 3 | `src/entities/behavior-factory.ts` | Wire `resolveMyInsectBehavior` (one function, two lines) |
 | 4 | `src/entities/my-insect.ts` (bottom) | `insectRegistry.register({ kind, behaviorIds, seedEnergyRange, initialCount, create })` |
 | 5 | `src/config.ts` (optional) | Add `initialMyInsects: 0` if a tunable starting population is needed |
@@ -478,8 +478,10 @@ The entity architecture separates concerns into dedicated modules:
 - `src/entities/repository.ts`: keyed insect storage (`Map<kind, Insect[]>`), typed getters for built-in species, population counts and cleanup.
 - `src/events.ts`: typed simulation events and string formatting for replay/timeline output.
 - `src/entities/behavior.ts`: strategy interface, behavior id types, and exported id arrays for random selection.
-- `src/entities/herbivore-behaviors.ts`: herbivore strategy implementations and lookup.
-- `src/entities/carnivore-behaviors.ts`: carnivore strategy implementations and lookup.
+- `src/behaviors/herbivore/`: herbivore strategy class implementations.
+- `src/behaviors/carnivore/`: carnivore strategy class implementations.
+- `src/entities/herbivore-behaviors.ts`: herbivore behavior registry and lookup.
+- `src/entities/carnivore-behaviors.ts`: carnivore behavior registry and lookup.
 - `src/entities/behavior-factory.ts`: central strategy resolver API consumed by entity classes.
 
 This keeps lifecycle/state in entities and policy logic in strategy modules, enabling easier experimentation without rewriting core lifecycle plumbing.
@@ -530,8 +532,10 @@ Replay symbol legend:
   - `src/events.ts`: typed replay/event timeline primitives
   - `src/entities/behavior.ts`: strategy interfaces and behavior ids
   - `src/entities/behavior-factory.ts`: runtime behavior selection facade
-  - `src/entities/herbivore-behaviors.ts`: herbivore strategy implementations
-  - `src/entities/carnivore-behaviors.ts`: carnivore strategy implementations
+  - `src/behaviors/herbivore/`: herbivore strategy class implementations
+  - `src/behaviors/carnivore/`: carnivore strategy class implementations
+  - `src/entities/herbivore-behaviors.ts`: herbivore behavior registry and lookup
+  - `src/entities/carnivore-behaviors.ts`: carnivore behavior registry and lookup
 
 ### **Recording Format Guidance**
 
