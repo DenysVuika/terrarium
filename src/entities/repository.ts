@@ -1,7 +1,7 @@
-import type { Insect } from './insect.ts';
-import type { Plant } from './plant.ts';
-import type { Herbivore } from './herbivore.ts';
-import type { Carnivore } from './carnivore.ts';
+import type { Insect } from './insect';
+import type { Plant } from './plant';
+import type { Herbivore } from './herbivore';
+import type { Carnivore } from './carnivore';
 
 /**
  * Central storage and utility operations for all entity collections.
@@ -100,7 +100,10 @@ export class EntityRepository {
 
   cleanupDead(): void {
     for (const [kind, arr] of this._insects.entries()) {
-      this._insects.set(kind, arr.filter((i) => i.alive));
+      this._insects.set(
+        kind,
+        arr.filter((i) => i.alive)
+      );
     }
   }
 }

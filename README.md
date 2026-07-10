@@ -196,24 +196,24 @@
 
 Use this section as the source of truth if any diagram and prose disagree.
 
-| Rule Area | Canonical Rule |
-| --- | --- |
-| Adjacency model | Plants spread in 4-neighborhood; insect interactions use 8-neighborhood |
-| Movement model | Step-charge based; sand step-cost is 1.5 for both insect types |
-| Carnivore on sand | -0.5 energy move cost and -1 AP |
-| Herbivore flee roll | 20% escape success; 80% attack resolves |
-| Carnivore turn economy | Max 1 attack action and 1 chase per tick |
-| Insect lifecycle | Herbivore egg/larva: 4/2 ticks; carnivore egg/larva: 2/1 ticks |
-| Herbivore breeding gate | Energy >= 14, cooldown 18, chance 12%, cost 6 |
-| Carnivore breeding gate | Energy >= 16, cooldown 16, chance 10%, cost 7 |
+| Rule Area                      | Canonical Rule                                                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| Adjacency model                | Plants spread in 4-neighborhood; insect interactions use 8-neighborhood                                       |
+| Movement model                 | Step-charge based; sand step-cost is 1.5 for both insect types                                                |
+| Carnivore on sand              | -0.5 energy move cost and -1 AP                                                                               |
+| Herbivore flee roll            | 20% escape success; 80% attack resolves                                                                       |
+| Carnivore turn economy         | Max 1 attack action and 1 chase per tick                                                                      |
+| Insect lifecycle               | Herbivore egg/larva: 4/2 ticks; carnivore egg/larva: 2/1 ticks                                                |
+| Herbivore breeding gate        | Energy >= 14, cooldown 18, chance 12%, cost 6                                                                 |
+| Carnivore breeding gate        | Energy >= 16, cooldown 16, chance 10%, cost 7                                                                 |
 | Reproduction crowding controls | Herbivore local cap 3 and global cap plants \* 0.0095; carnivore local cap 2 and global cap herbivores \* 0.3 |
-| Night metabolism | Insect passive metabolism is multiplied by 0.7 at night |
-| Starvation windows | Herbivore: 5 ticks at non-positive energy; carnivore: 8 ticks |
-| Lifespan contrast | Herbivores live much longer (max 320) than carnivores (max 180) |
-| Plant growth light threshold | Growth allowed at light >= 50 |
-| Decay rewards | Plant: +50 nutrients; insect: +20 nutrients |
-| Gas bounds | O₂/CO₂ are clamped to 0-100 each tick |
-| Water-loss condition | Trigger only after 3 ticks with no cell above water > 1 |
+| Night metabolism               | Insect passive metabolism is multiplied by 0.7 at night                                                       |
+| Starvation windows             | Herbivore: 5 ticks at non-positive energy; carnivore: 8 ticks                                                 |
+| Lifespan contrast              | Herbivores live much longer (max 320) than carnivores (max 180)                                               |
+| Plant growth light threshold   | Growth allowed at light >= 50                                                                                 |
+| Decay rewards                  | Plant: +50 nutrients; insect: +20 nutrients                                                                   |
+| Gas bounds                     | O₂/CO₂ are clamped to 0-100 each tick                                                                         |
+| Water-loss condition           | Trigger only after 3 ticks with no cell above water > 1                                                       |
 
 **🔗 Diagram**: [Terrarium: Main Game Loop](sandbox/terrarium-main-game-loop.md)
 
@@ -225,26 +225,26 @@ Use this section as a fast guide to what is implemented now vs. what is design i
 
 ### **Implementation Status (Prototype)**
 
-| System | Status | Notes |
-| --- | --- | --- |
-| Grid + terrain patches | Implemented | 2D world, terrain generation, per-cell resources in `src/world.ts` |
-| Plants lifecycle | Implemented | Growth, reproduction, wilt/death, decay feedback |
-| Herbivore lifecycle | Implemented | Stage aging, movement, feeding, fleeing, breeding gates |
-| Carnivore lifecycle + AP combat | Implemented | Hunt/chase logic, AP spend/regen, opportunistic rival fights |
-| Resource cycles | Implemented | O2/CO2 pools, water weather/seepage, nutrient regen/decay |
-| Replay + diagnostics | Implemented | Tick timeline, event history, CSV + JSON replay output |
-| Player actions beyond lid config | Partial | Lid state is configurable at run start; interactive add-water/add-soil tools are not yet in CLI loop |
+| System                           | Status      | Notes                                                                                                |
+| -------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
+| Grid + terrain patches           | Implemented | 2D world, terrain generation, per-cell resources in `src/world.ts`                                   |
+| Plants lifecycle                 | Implemented | Growth, reproduction, wilt/death, decay feedback                                                     |
+| Herbivore lifecycle              | Implemented | Stage aging, movement, feeding, fleeing, breeding gates                                              |
+| Carnivore lifecycle + AP combat  | Implemented | Hunt/chase logic, AP spend/regen, opportunistic rival fights                                         |
+| Resource cycles                  | Implemented | O2/CO2 pools, water weather/seepage, nutrient regen/decay                                            |
+| Replay + diagnostics             | Implemented | Tick timeline, event history, CSV + JSON replay output                                               |
+| Player actions beyond lid config | Partial     | Lid state is configurable at run start; interactive add-water/add-soil tools are not yet in CLI loop |
 
 ### **Per-Tick Execution Order (Source of Truth)**
 
-| Order | Phase | Effect |
-| ---: | --- | --- |
-| 1 | Day/Night phase update | Applies light and metabolism multipliers |
-| 2 | Weather roll | Triggers rain/drought events |
-| 3 | Resource update | Applies evaporation, seepage, soil regen, gas flux |
-| 4 | Entity actions | Plants act first, then insects (move/eat/fight/reproduce) |
-| 5 | Decay pass | Dead entities convert into nutrients |
-| 6 | Outcome checks | Evaluates loss streaks and win condition |
+| Order | Phase                  | Effect                                                    |
+| ----: | ---------------------- | --------------------------------------------------------- |
+|     1 | Day/Night phase update | Applies light and metabolism multipliers                  |
+|     2 | Weather roll           | Triggers rain/drought events                              |
+|     3 | Resource update        | Applies evaporation, seepage, soil regen, gas flux        |
+|     4 | Entity actions         | Plants act first, then insects (move/eat/fight/reproduce) |
+|     5 | Decay pass             | Dead entities convert into nutrients                      |
+|     6 | Outcome checks         | Evaluates loss streaks and win condition                  |
 
 ### **Glossary**
 
@@ -274,11 +274,11 @@ The repository now includes an executable prototype simulator in `src/`.
 
 ### **Run Commands**
 
-- Install/runtime: Node.js 18+ (no external dependencies).
+- Install/runtime: Node.js 22+ and pnpm.
 - Single run (100 ticks) and automatically save replay artifacts to `runs/latest.csv` and compressed replay `runs/latest.json.gz`:
 
 ```bash
-npm run simulate
+pnpm simulate
 ```
 
 The single-run summary now includes a **Diagnostics** block with births, deaths, predation/rival kills, and egg visibility statistics.
@@ -286,55 +286,101 @@ The single-run summary now includes a **Diagnostics** block with births, deaths,
 - Sweep 5 seeds:
 
 ```bash
-npm run simulate:sweep
+pnpm simulate:sweep
 ```
 
 - Custom run:
 
 ```bash
-node src/simulate.ts --ticks 100 --seed my-seed --plants 1800 --herbivores 180 --carnivores 70 --lid open
+pnpm simulate --ticks 100 --seed my-seed --plants 1800 --herbivores 180 --carnivores 70 --lid open
 ```
 
 - Custom run with longer day/night phases:
 
 ```bash
-node src/simulate.ts --ticks 300 --seed long-run --day-ticks 4 --night-ticks 4
+pnpm simulate --ticks 300 --seed long-run --day-ticks 4 --night-ticks 4
 ```
 
 - Custom run with explicit behavior profiles:
 
 ```bash
-node src/simulate.ts --ticks 150 --seed profile-test --herbivore-behavior forager --carnivore-behavior aggressive
+pnpm simulate --ticks 150 --seed profile-test --herbivore-behavior forager --carnivore-behavior aggressive
 ```
 
 - Record per-tick CSV + replay JSON:
 
 ```bash
-node src/simulate.ts --ticks 100 --seed my-seed --record-csv runs/my-seed.csv --record-json runs/my-seed.json.gz
+pnpm simulate --ticks 100 --seed my-seed --record-csv runs/my-seed.csv --record-json runs/my-seed.json.gz
 ```
 
 - Replay latest run with keyboard navigation:
 
 ```bash
-npm run simulate:replay
+pnpm replay
 ```
+
+### **Build and Quality Pipeline**
+
+- Typecheck:
+
+```bash
+pnpm typecheck
+```
+
+- Build distributable output:
+
+```bash
+pnpm build
+```
+
+- Lint (OXC):
+
+```bash
+pnpm lint
+```
+
+- Format (Oxfmt):
+
+```bash
+pnpm format
+```
+
+- Check formatting (Oxfmt):
+
+```bash
+pnpm format:check
+```
+
+- Run tests (Vitest):
+
+```bash
+pnpm test
+```
+
+- Run full gate (typecheck + build + lint + tests):
+
+```bash
+pnpm check
+```
+
+Build artifacts are written to `dist/`.
 
 - Replay a specific file:
 
 ```bash
-node src/simulate.ts --replay runs/my-seed.json.gz
+pnpm simulate --replay runs/my-seed.json.gz
 ```
 
 - Replay with autoplay enabled on startup:
 
 ```bash
-node src/simulate.ts --replay runs/my-seed.json.gz --autoplay --fps 6
+pnpm simulate --replay runs/my-seed.json.gz --autoplay --fps 6
 ```
 
 - Replay with native board dimensions (full 250x250 render):
 
 ```bash
-node src/simulate.ts --replay latest --native-size
+pnpm simulate --replay latest --native-size
 ```
 
 ### **CLI Options**
@@ -371,7 +417,7 @@ The simulator uses baseline defaults from `src/config.ts` and then applies CLI o
 
 - Override precedence:
   1. `DEFAULT_CONFIG` in `src/config.ts`
-  2. CLI flags passed to `node src/simulate.ts ...`
+  2. CLI flags passed to `pnpm simulate ...`
 
 - Common tuning groups:
   - **World/Time**: `size`, `ticks`, `seed`, `lidOpen`, `dayTicks`, `nightTicks`
@@ -397,13 +443,13 @@ Each insect is independently assigned a random behavior profile when it is born 
 - Herbivore profiles: `default`, `forager`
 - Carnivore profiles: `default`, `aggressive`, `passive`
 
-| Profile | Species | Effect |
-| --- | --- | --- |
-| `default` | Herbivore | Seeks plants within radius 2, eats with 80% success |
-| `forager` | Herbivore | Wider plant search (radius 3), eats with 90% success |
-| `default` | Carnivore | Baseline hunt / rest / rival-fight behaviour |
-| `aggressive` | Carnivore | Wider hunt radius, less resting, higher rival-fight chance |
-| `passive` | Carnivore | Narrower hunt radius, more resting, lower rival-fight chance |
+| Profile      | Species   | Effect                                                       |
+| ------------ | --------- | ------------------------------------------------------------ |
+| `default`    | Herbivore | Seeks plants within radius 2, eats with 80% success          |
+| `forager`    | Herbivore | Wider plant search (radius 3), eats with 90% success         |
+| `default`    | Carnivore | Baseline hunt / rest / rival-fight behaviour                 |
+| `aggressive` | Carnivore | Wider hunt radius, less resting, higher rival-fight chance   |
+| `passive`    | Carnivore | Narrower hunt radius, more resting, lower rival-fight chance |
 
 Behavior profiles are not configurable per-run from the CLI — the population mix is determined by the RNG seed, giving each seed a unique character.
 
@@ -411,13 +457,13 @@ Behavior profiles are not configurable per-run from the CLI — the population m
 
 The simulator is designed so a new insect type can be contributed without touching the simulator, context, or repository. The contribution checklist is:
 
-| Step | File to create | What goes there |
-| ---: | --- | --- |
-| 1 | `src/entities/my-insect.ts` | Class extending `Insect`, lifecycle parameters, hooks |
-| 2 | `src/behaviors/my-insect/` + `src/entities/my-insect-behaviors.ts` | Strategy class implementations in `src/behaviors/my-insect/` and a small behavior registry/factory module in `src/entities/my-insect-behaviors.ts` |
-| 3 | `src/entities/behavior-factory.ts` | Wire `resolveMyInsectBehavior` (one function, two lines) |
-| 4 | `src/entities/my-insect.ts` (bottom) | `insectRegistry.register({ kind, behaviorIds, seedEnergyRange, initialCount, create })` |
-| 5 | `src/config.ts` (optional) | Add `initialMyInsects: 0` if a tunable starting population is needed |
+| Step | File to create                                                     | What goes there                                                                                                                                    |
+| ---: | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+|    1 | `src/entities/my-insect.ts`                                        | Class extending `Insect`, lifecycle parameters, hooks                                                                                              |
+|    2 | `src/behaviors/my-insect/` + `src/entities/my-insect-behaviors.ts` | Strategy class implementations in `src/behaviors/my-insect/` and a small behavior registry/factory module in `src/entities/my-insect-behaviors.ts` |
+|    3 | `src/behaviors/behavior-factory.ts`                                | Wire `resolveMyInsectBehavior` (one function, two lines)                                                                                           |
+|    4 | `src/entities/my-insect.ts` (bottom)                               | `insectRegistry.register({ kind, behaviorIds, seedEnergyRange, initialCount, create })`                                                            |
+|    5 | `src/config.ts` (optional)                                         | Add `initialMyInsects: 0` if a tunable starting population is needed                                                                               |
 
 Once registered, the simulator automatically seeds, ticks, and counts the new species — no other changes needed.
 
@@ -439,8 +485,7 @@ export class Decomposer extends Insect {
   }
 
   spawnOffspring(ctx, cell) {
-    return new Decomposer(ctx.nextId('d'), cell, 4, this._config,
-      ctx.rng.pick(DECOMPOSER_BEHAVIOR_IDS) ?? 'default');
+    return new Decomposer(ctx.nextId('d'), cell, 4, this._config, ctx.rng.pick(DECOMPOSER_BEHAVIOR_IDS) ?? 'default');
   }
 
   // ... lifecycle getters and hooks ...
@@ -455,8 +500,7 @@ insectRegistry.register({
   behaviorIds: DECOMPOSER_BEHAVIOR_IDS,
   seedEnergyRange: [4, 8],
   initialCount: (config) => config.initialDecomposers ?? 0,
-  create: (id, cell, energy, config, behaviorId) =>
-    new Decomposer(id, cell, energy, config, behaviorId),
+  create: (id, cell, energy, config, behaviorId) => new Decomposer(id, cell, energy, config, behaviorId),
 });
 ```
 
@@ -477,12 +521,13 @@ The entity architecture separates concerns into dedicated modules:
 - `src/entities/insect-registry.ts`: singleton registry — the single integration point for new species.
 - `src/entities/repository.ts`: keyed insect storage (`Map<kind, Insect[]>`), typed getters for built-in species, population counts and cleanup.
 - `src/events.ts`: typed simulation events and string formatting for replay/timeline output.
-- `src/entities/behavior.ts`: strategy interface, behavior id types, and exported id arrays for random selection.
+- `src/behaviors/behavior.ts`: strategy interface, behavior id types, and exported id arrays for random selection.
+- `src/behaviors/index.ts`: barrel exports for behavior ids, resolvers, and behavior classes.
 - `src/behaviors/herbivore/`: herbivore strategy class implementations.
 - `src/behaviors/carnivore/`: carnivore strategy class implementations.
-- `src/entities/herbivore-behaviors.ts`: herbivore behavior registry and lookup.
-- `src/entities/carnivore-behaviors.ts`: carnivore behavior registry and lookup.
-- `src/entities/behavior-factory.ts`: central strategy resolver API consumed by entity classes.
+- `src/behaviors/herbivore-behaviors.ts`: herbivore behavior registry and lookup.
+- `src/behaviors/carnivore-behaviors.ts`: carnivore behavior registry and lookup.
+- `src/behaviors/behavior-factory.ts`: central strategy resolver API consumed by entity classes.
 
 This keeps lifecycle/state in entities and policy logic in strategy modules, enabling easier experimentation without rewriting core lifecycle plumbing.
 
@@ -530,12 +575,13 @@ Replay symbol legend:
   - `src/simulate.ts`: CLI entry point, CSV/JSON recording, interactive replay
   - `src/entities/repository.ts`: entity collection management helpers
   - `src/events.ts`: typed replay/event timeline primitives
-  - `src/entities/behavior.ts`: strategy interfaces and behavior ids
-  - `src/entities/behavior-factory.ts`: runtime behavior selection facade
+  - `src/behaviors/behavior.ts`: strategy interfaces and behavior ids
+  - `src/behaviors/index.ts`: behavior barrel exports used by entities and config
+  - `src/behaviors/behavior-factory.ts`: runtime behavior selection facade
   - `src/behaviors/herbivore/`: herbivore strategy class implementations
   - `src/behaviors/carnivore/`: carnivore strategy class implementations
-  - `src/entities/herbivore-behaviors.ts`: herbivore behavior registry and lookup
-  - `src/entities/carnivore-behaviors.ts`: carnivore behavior registry and lookup
+  - `src/behaviors/herbivore-behaviors.ts`: herbivore behavior registry and lookup
+  - `src/behaviors/carnivore-behaviors.ts`: carnivore behavior registry and lookup
 
 ### **Recording Format Guidance**
 
@@ -552,19 +598,19 @@ Replay symbol legend:
 
 ### **Single Baseline Run**
 
-- Command: `node src/simulate.ts --ticks 100 --seed baseline-5`
+- Command: `pnpm simulate --ticks 100 --seed baseline-5`
 - Outcome: **WIN** (`survived 100 ticks`)
 - Final state: plants `1542`, herbivores `4`, carnivores `2`, O2 `55.48`, CO2 `47.28`
 
 ### **5-Seed Sweep**
 
-| Seed | Outcome | Final Tick | Plants | Insects | O2 | CO2 |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| alpha | win | 100 | 1480 | 6 | 55.24 | 47.40 |
-| beta | win | 100 | 1446 | 8 | 55.10 | 47.47 |
-| gamma | win | 100 | 1462 | 3 | 55.21 | 47.41 |
-| delta | win | 100 | 1529 | 6 | 55.43 | 47.31 |
-| epsilon | win | 100 | 1474 | 5 | 55.27 | 47.38 |
+| Seed    | Outcome | Final Tick | Plants | Insects |    O2 |   CO2 |
+| ------- | ------- | ---------: | -----: | ------: | ----: | ----: |
+| alpha   | win     |        100 |   1480 |       6 | 55.24 | 47.40 |
+| beta    | win     |        100 |   1446 |       8 | 55.10 | 47.47 |
+| gamma   | win     |        100 |   1462 |       3 | 55.21 | 47.41 |
+| delta   | win     |        100 |   1529 |       6 | 55.43 | 47.31 |
+| epsilon | win     |        100 |   1474 |       5 | 55.27 | 47.38 |
 
 ### **Current Balance Gaps (Expected for Prototype)**
 
@@ -578,14 +624,14 @@ These are the primary targets for the next tuning pass.
 
 ### **🔗 Quick Links to Diagrams**
 
-| System | Canvas Link |
-| --- | --- |
-| Grid System | [terrarium-grid-system](sandbox/terrarium-grid-system.md) |
-| Plants Lifecycle | [terrarium-plants-lifecycle](sandbox/terrarium-plants-lifecycle.md) |
+| System              | Canvas Link                                                                               |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| Grid System         | [terrarium-grid-system](sandbox/terrarium-grid-system.md)                                 |
+| Plants Lifecycle    | [terrarium-plants-lifecycle](sandbox/terrarium-plants-lifecycle.md)                       |
 | Herbivore Lifecycle | [terrarium-herbivore-insects-lifecycle](sandbox/terrarium-herbivore-insects-lifecycle.md) |
 | Carnivore Lifecycle | [terrarium-carnivore-insects-lifecycle](sandbox/terrarium-carnivore-insects-lifecycle.md) |
-| Resource Cycle | [terrarium-resource-cycle](sandbox/terrarium-resource-cycle.md) |
-| Main Game Loop | [terrarium-main-game-loop](sandbox/terrarium-main-game-loop.md) |
+| Resource Cycle      | [terrarium-resource-cycle](sandbox/terrarium-resource-cycle.md)                           |
+| Main Game Loop      | [terrarium-main-game-loop](sandbox/terrarium-main-game-loop.md)                           |
 
 ---
 

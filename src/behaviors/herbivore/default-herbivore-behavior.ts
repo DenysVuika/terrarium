@@ -1,4 +1,4 @@
-import { BaseHerbivoreBehavior } from './base-herbivore-behavior.ts';
+import { BaseHerbivoreBehavior } from './base-herbivore-behavior';
 
 export class DefaultHerbivoreBehavior extends BaseHerbivoreBehavior {
   constructor() {

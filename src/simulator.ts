@@ -1,14 +1,14 @@
-import type { SimulationConfig } from './config.ts';
-import type { SimContext, TickStats } from './context.ts';
-import { createRng, type Rng } from './rng.ts';
-import { TERRAIN, World } from './world.ts';
-import { Plant } from './entities/plant.ts';
+import type { SimulationConfig } from './config';
+import type { SimContext, TickStats } from './context';
+import { createRng, type Rng } from './rng';
+import { TERRAIN, World } from './world';
+import { Plant } from './entities/plant';
 // Species imports trigger self-registration in insectRegistry
 import './entities/herbivore.ts';
 import './entities/carnivore.ts';
-import { EntityRepository } from './entities/repository.ts';
-import { insectRegistry } from './entities/insect-registry.ts';
-import { formatSimulationEvent, type SimulationEvent } from './events.ts';
+import { EntityRepository } from './entities/repository';
+import { insectRegistry } from './entities/insect-registry';
+import { formatSimulationEvent, type SimulationEvent } from './events';
 
 export interface Snapshot {
   tick: number;
@@ -121,13 +121,10 @@ class Simulator {
   seedInitialPopulation(): void {
     for (let index = 0; index < this.config.initialPlants; index += 1) {
       const cell = this.world.randomCell(
-        candidate => this.world.isSoil(candidate) && !this.entities.plants.has(candidate),
+        (candidate) => this.world.isSoil(candidate) && !this.entities.plants.has(candidate)
       );
       if (cell >= 0) {
-        this.entities.plants.set(
-          cell,
-          new Plant(this.nextId('p'), cell, this.rng.int(10, 95)),
-        );
+        this.entities.plants.set(cell, new Plant(this.nextId('p'), cell, this.rng.int(10, 95)));
       }
     }
 
@@ -138,20 +135,12 @@ class Simulator {
 
       for (let index = 0; index < count; index += 1) {
         const cell = this.world.randomCell(
-          candidate =>
-            this.world.isWalkable(candidate) &&
-            !this.entities.isOccupied(candidate),
+          (candidate) => this.world.isWalkable(candidate) && !this.entities.isOccupied(candidate)
         );
         if (cell >= 0) {
           const energy = this.rng.int(minEnergy, maxEnergy);
           const behaviorId = this.rng.pick(species.behaviorIds as string[]) ?? species.behaviorIds[0];
-          const insect = species.create(
-            this.nextId(species.kind[0]),
-            cell,
-            energy,
-            this.config,
-            behaviorId,
-          );
+          const insect = species.create(this.nextId(species.kind[0]), cell, energy, this.config, behaviorId);
           species.afterSeed?.(insect, this.rng);
           this.entities.addInsect(insect);
         }
@@ -316,7 +305,11 @@ class Simulator {
 
   /** Create the per-tick context object shared by all entity tick() calls. */
   buildSimContext(light: number): SimContext {
-    const self = this;
+    const entities = this.entities;
+    const addEvent = (msg: string): void => this.addEvent(msg);
+    const emitEvent = (event: SimulationEvent): void => this.emitEvent(event);
+    const nextId = (prefix: string): string => this.nextId(prefix);
+
     return {
       world: this.world,
       config: this.config,
@@ -325,23 +318,23 @@ class Simulator {
       light,
       o2: this.o2,
       co2: this.co2,
-      plants: this.entities.plants,
-      insects: this.entities.allInsects(),
-      herbivores: this.entities.herbivores,
-      carnivores: this.entities.carnivores,
+      plants: entities.plants,
+      insects: entities.allInsects(),
+      herbivores: entities.herbivores,
+      carnivores: entities.carnivores,
       occupied: new Set<number>(),
       getInsectsByKind(kind: string) {
-        return self.entities.getByKind(kind);
+        return entities.getByKind(kind);
       },
       addEvent(msg: string) {
-        self.addEvent(msg);
+        addEvent(msg);
       },
       emitEvent(event: SimulationEvent) {
-        self.emitEvent(event);
+        emitEvent(event);
       },
       stats: this.tickStats,
       nextId(prefix: string) {
-        return self.nextId(prefix);
+        return nextId(prefix);
       },
     };
   }
@@ -396,13 +389,25 @@ class Simulator {
     this.totalStats.carnivoreKillsByCarnivores += ctx.stats.carnivoreKillsByCarnivores;
 
     if (ctx.stats.herbivoreBirths > 0)
-      this.emitEvent({ type: 'herbivores-born', count: ctx.stats.herbivoreBirths });
+      this.emitEvent({
+        type: 'herbivores-born',
+        count: ctx.stats.herbivoreBirths,
+      });
     if (ctx.stats.carnivoreBirths > 0)
-      this.emitEvent({ type: 'carnivores-born', count: ctx.stats.carnivoreBirths });
+      this.emitEvent({
+        type: 'carnivores-born',
+        count: ctx.stats.carnivoreBirths,
+      });
     if (ctx.stats.herbivoreDeaths > 0)
-      this.emitEvent({ type: 'herbivores-died', count: ctx.stats.herbivoreDeaths });
+      this.emitEvent({
+        type: 'herbivores-died',
+        count: ctx.stats.herbivoreDeaths,
+      });
     if (ctx.stats.carnivoreDeaths > 0)
-      this.emitEvent({ type: 'carnivores-died', count: ctx.stats.carnivoreDeaths });
+      this.emitEvent({
+        type: 'carnivores-died',
+        count: ctx.stats.carnivoreDeaths,
+      });
     if (ctx.stats.herbivoreKillsByCarnivores > 0)
       this.emitEvent({
         type: 'predation-kills',
@@ -470,10 +475,9 @@ class Simulator {
       } else {
         const waterNeighbors = this.world
           .neighbors4(index)
-          .filter(neighbor => this.world.terrain[neighbor] === TERRAIN.WATER).length;
+          .filter((neighbor) => this.world.terrain[neighbor] === TERRAIN.WATER).length;
         if (waterNeighbors > 0) {
-          this.world.water[index] +=
-            waterNeighbors * this.config.moistureSeepageFromAdjacentWater;
+          this.world.water[index] += waterNeighbors * this.config.moistureSeepageFromAdjacentWater;
         }
       }
 
@@ -486,8 +490,7 @@ class Simulator {
     }
 
     if (rainEvents > 0) this.emitEvent({ type: 'weather-rain', cells: rainEvents });
-    if (droughtEvents > 0)
-      this.emitEvent({ type: 'weather-drought', cells: droughtEvents });
+    if (droughtEvents > 0) this.emitEvent({ type: 'weather-drought', cells: droughtEvents });
   }
 
   updateGlobalGases(light: number): void {
@@ -499,9 +502,7 @@ class Simulator {
     const scaledInsectFlux = 1 * (insects / 10);
 
     this.o2 += (scaledPlantFlux - scaledInsectFlux) * this.config.gasFluxScale;
-    this.co2 +=
-      (-1 * (plantCount / 10) * photosynthesisFactor + scaledInsectFlux) *
-      this.config.gasFluxScale;
+    this.co2 += (-1 * (plantCount / 10) * photosynthesisFactor + scaledInsectFlux) * this.config.gasFluxScale;
 
     this.o2 += (50 - this.o2) * this.config.gasMidpointPull;
     this.co2 += (50 - this.co2) * this.config.gasMidpointPull;
@@ -532,12 +533,9 @@ class Simulator {
     this.highCO2Ticks = this.co2 > 90 ? this.highCO2Ticks + 1 : 0;
     this.lowWaterTicks = hasDrinkable ? 0 : this.lowWaterTicks + 1;
 
-    if (this.lowO2Ticks > 0)
-      this.emitEvent({ type: 'warning-low-o2', streak: this.lowO2Ticks });
-    if (this.highCO2Ticks > 0)
-      this.emitEvent({ type: 'warning-high-co2', streak: this.highCO2Ticks });
-    if (this.lowWaterTicks > 0)
-      this.emitEvent({ type: 'warning-low-water', streak: this.lowWaterTicks });
+    if (this.lowO2Ticks > 0) this.emitEvent({ type: 'warning-low-o2', streak: this.lowO2Ticks });
+    if (this.highCO2Ticks > 0) this.emitEvent({ type: 'warning-high-co2', streak: this.highCO2Ticks });
+    if (this.lowWaterTicks > 0) this.emitEvent({ type: 'warning-low-water', streak: this.lowWaterTicks });
 
     if (this.lowO2Ticks >= 3) {
       this.outcome = { type: 'lose', reason: 'o2 below 10 for 3 ticks' };
@@ -561,10 +559,7 @@ class Simulator {
   }
 }
 
-export function runSimulation(
-  config: SimulationConfig,
-  options: RunOptions = {},
-): SimulationResult {
+export function runSimulation(config: SimulationConfig, options: RunOptions = {}): SimulationResult {
   const simulator = new Simulator(config);
   return simulator.run(options);
 }

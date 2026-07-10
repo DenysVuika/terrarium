@@ -1,11 +1,11 @@
-import type { SimulationConfig } from './config.ts';
-import type { Rng } from './rng.ts';
-import type { World } from './world.ts';
-import type { Plant } from './entities/plant.ts';
-import type { Insect } from './entities/insect.ts';
-import type { Herbivore } from './entities/herbivore.ts';
-import type { Carnivore } from './entities/carnivore.ts';
-import type { SimulationEvent } from './events.ts';
+import type { SimulationConfig } from './config';
+import type { Rng } from './rng';
+import type { World } from './world';
+import type { Plant } from './entities/plant';
+import type { Insect } from './entities/insect';
+import type { Herbivore } from './entities/herbivore';
+import type { Carnivore } from './entities/carnivore';
+import type { SimulationEvent } from './events';
 
 export interface TickStats {
   herbivoreBirths: number;

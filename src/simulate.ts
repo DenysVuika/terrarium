@@ -4,14 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 
-import { DEFAULT_CONFIG, type SimulationConfig } from './config.ts';
-import {
-  runSimulation,
-  type Outcome,
-  type ReplayPayload,
-  type SimulationResult,
-  type Snapshot,
-} from './simulator.ts';
+import { DEFAULT_CONFIG, type SimulationConfig } from './config';
+import { runSimulation, type Outcome, type ReplayPayload, type SimulationResult } from './simulator';
 
 type SimulationCliConfig = SimulationConfig & {
   sweep: boolean;
@@ -156,7 +150,7 @@ function writeCsv(result: SimulationResult, filePath: string): void {
       result.initialState.insects,
       result.initialState.avgWater,
       result.initialState.drinkableCells,
-    ].join(','),
+    ].join(',')
   );
 
   for (let index = 0; index < result.history.length; index += 1) {
@@ -174,7 +168,7 @@ function writeCsv(result: SimulationResult, filePath: string): void {
         snapshot.insects,
         snapshot.avgWater,
         snapshot.drinkableCells,
-      ].join(','),
+      ].join(',')
     );
   }
 
@@ -188,11 +182,7 @@ function resolveJsonOutputPath(filePath: string, compressed: boolean): string {
   return filePath.endsWith('.gz') ? filePath : `${filePath}.gz`;
 }
 
-function writeJsonRecording(
-  result: SimulationResult,
-  filePath: string,
-  compressed = true,
-): string {
+function writeJsonRecording(result: SimulationResult, filePath: string, compressed = true): string {
   const resolvedPath = resolveJsonOutputPath(filePath, compressed);
   ensureParentDir(resolvedPath);
   const payload: ReplayRecording = {
@@ -214,9 +204,7 @@ function writeJsonRecording(
 
 function loadReplay(filePath: string): ReplayRecording {
   const buffer = fs.readFileSync(filePath);
-  const raw = filePath.endsWith('.gz')
-    ? zlib.gunzipSync(buffer).toString('utf8')
-    : buffer.toString('utf8');
+  const raw = filePath.endsWith('.gz') ? zlib.gunzipSync(buffer).toString('utf8') : buffer.toString('utf8');
   const parsed = JSON.parse(raw) as ReplayRecording;
   if (!parsed || !parsed.replay || !Array.isArray(parsed.replay.frames)) {
     throw new Error('Invalid replay file: expected replay.frames array');
@@ -262,9 +250,7 @@ function resolveReplayPath(replayPath: string | null): string {
     return latest;
   }
 
-  throw new Error(
-    'No replay JSON found. Run: npm run simulate (or use --record-json <path>) before replay.',
-  );
+  throw new Error('No replay JSON found. Run: npm run simulate (or use --record-json <path>) before replay.');
 }
 
 function terrainChar(value: number): string {
@@ -284,7 +270,7 @@ function terrainEmoji(value: number): string {
 function resolveReplayViewport(
   config: SimulationCliConfig,
   emojiMode: boolean,
-  worldSize: number,
+  worldSize: number
 ): { width: number; height: number } {
   if (config.nativeSize) {
     return { width: worldSize, height: worldSize };
@@ -293,12 +279,7 @@ function resolveReplayViewport(
   const baseWidth = Math.max(24, config.previewWidth);
   const baseHeight = Math.max(10, config.previewHeight);
 
-  if (
-    config.autoFit &&
-    emojiMode &&
-    !config.previewWidthSet &&
-    !config.previewHeightSet
-  ) {
+  if (config.autoFit && emojiMode && !config.previewWidthSet && !config.previewHeightSet) {
     return { width: 40, height: 12 };
   }
 
@@ -314,7 +295,7 @@ function renderFrame(
     isPlaying?: boolean;
     fps?: number;
     emojiMode?: boolean;
-  } = {},
+  } = {}
 ): void {
   const replay = replayPayload.replay;
   const frame = replay.frames[frameIndex];
@@ -352,23 +333,19 @@ function renderFrame(
   lines.push(
     `Tick ${String(frame.tick).padStart(3)} / ${replay.frames.length - 1}   ` +
       `O2=${frame.o2.toFixed(2)} CO2=${frame.co2.toFixed(2)}   ` +
-      `P=${frame.plants.length} H=${frame.herbivores.length} C=${frame.carnivores.length}`,
+      `P=${frame.plants.length} H=${frame.herbivores.length} C=${frame.carnivores.length}`
   );
   lines.push(
     useEmoji
       ? 'Legend: 🟫 soil  🟦 water  🟨 sand  ⬛ empty  🌿 plant  🐛 herbivore  🦂 carnivore  🥚 egg'
-      : 'Legend: . soil  ~ water  : sand  [space] empty  * plant  h herbivore  C carnivore  o egg',
+      : 'Legend: . soil  ~ water  : sand  [space] empty  * plant  h herbivore  C carnivore  o egg'
   );
-  lines.push(
-    `Playback: ${playback.isPlaying ? 'auto' : 'manual'} @ ${playback.fps ?? 4} fps`,
-  );
+  lines.push(`Playback: ${playback.isPlaying ? 'auto' : 'manual'} @ ${playback.fps ?? 4} fps`);
   lines.push(`Render mode: ${useEmoji ? 'emoji' : 'ascii'}`);
   lines.push(
-    `Board view: ${width}x${height} ${width === size && height === size ? '(native)' : `(sampled from ${size}x${size})`}`,
+    `Board view: ${width}x${height} ${width === size && height === size ? '(native)' : `(sampled from ${size}x${size})`}`
   );
-  lines.push(
-    'Controls: Left/Right step, Space autoplay, Up/Down speed, Home/End jump, e mode, n viewport, q quits.',
-  );
+  lines.push('Controls: Left/Right step, Space autoplay, Up/Down speed, Home/End jump, e mode, n viewport, q quits.');
   lines.push('');
 
   for (let py = 0; py < height; py += 1) {
@@ -399,9 +376,7 @@ function renderFrame(
 
   for (let index = startTickIndex; index < frameIndex; index += 1) {
     const historyFrame = replay.frames[index];
-    const historyEvents = Array.isArray(historyFrame.events)
-      ? historyFrame.events
-      : [];
+    const historyEvents = Array.isArray(historyFrame.events) ? historyFrame.events : [];
     if (historyEvents.length === 0) {
       continue;
     }
@@ -430,7 +405,7 @@ function startReplayInteractive(
     nativeSize?: boolean;
     autoFit?: boolean;
     fps?: number;
-  } = {},
+  } = {}
 ): void {
   let index = 0;
   let isPlaying = Boolean(options.autoplay);
@@ -497,7 +472,7 @@ function startReplayInteractive(
         index += 1;
         draw();
       },
-      Math.round(1000 / fps),
+      Math.round(1000 / fps)
     );
   };
 
@@ -598,13 +573,8 @@ function collectRunDiagnostics(result: SimulationResult): {
   maxEggs: number;
 } {
   const history = Array.isArray(result.history) ? result.history : [];
-  const eggFramesAfter10 = history.filter(
-    (snapshot) => snapshot.tick >= 10 && Number(snapshot.eggs || 0) > 0,
-  ).length;
-  const maxEggs = history.reduce(
-    (max, snapshot) => Math.max(max, Number(snapshot.eggs || 0)),
-    0,
-  );
+  const eggFramesAfter10 = history.filter((snapshot) => snapshot.tick >= 10 && Number(snapshot.eggs || 0) > 0).length;
+  const maxEggs = history.reduce((max, snapshot) => Math.max(max, Number(snapshot.eggs || 0)), 0);
 
   return {
     eggFramesAfter10,
@@ -627,9 +597,7 @@ function printRun(result: SimulationResult): void {
 
   console.log('Simulation summary');
   console.log('------------------');
-  console.log(
-    `Outcome: ${result.outcome.type.toUpperCase()} (${result.outcome.reason})`,
-  );
+  console.log(`Outcome: ${result.outcome.type.toUpperCase()} (${result.outcome.reason})`);
   console.log(`Final tick: ${result.finalTick}`);
   console.log(`O2: ${start.o2} -> ${end.o2}`);
   console.log(`CO2: ${start.co2} -> ${end.co2}`);
@@ -639,17 +607,13 @@ function printRun(result: SimulationResult): void {
   console.log(`Avg water: ${start.avgWater} -> ${end.avgWater}`);
   console.log('Diagnostics');
   console.log('-----------');
+  console.log(`Births H/C: ${diagnostics.herbivoreBirths ?? 0} / ${diagnostics.carnivoreBirths ?? 0}`);
+  console.log(`Deaths H/C: ${diagnostics.herbivoreDeaths ?? 0} / ${diagnostics.carnivoreDeaths ?? 0}`);
   console.log(
-    `Births H/C: ${diagnostics.herbivoreBirths ?? 0} / ${diagnostics.carnivoreBirths ?? 0}`,
+    `Predation kills: ${diagnostics.herbivoreKillsByCarnivores ?? 0} (rival carnivore kills: ${diagnostics.carnivoreKillsByCarnivores ?? 0})`
   );
   console.log(
-    `Deaths H/C: ${diagnostics.herbivoreDeaths ?? 0} / ${diagnostics.carnivoreDeaths ?? 0}`,
-  );
-  console.log(
-    `Predation kills: ${diagnostics.herbivoreKillsByCarnivores ?? 0} (rival carnivore kills: ${diagnostics.carnivoreKillsByCarnivores ?? 0})`,
-  );
-  console.log(
-    `Egg visibility: frames>=10 with eggs=${derived.eggFramesAfter10}, max eggs in a tick=${derived.maxEggs}`,
+    `Egg visibility: frames>=10 with eggs=${derived.eggFramesAfter10}, max eggs in a tick=${derived.maxEggs}`
   );
 }
 
@@ -688,7 +652,7 @@ function runSweep(baseConfig: SimulationConfig): void {
     console.log(
       `${row.seed.padEnd(8)} outcome=${row.outcome.padEnd(4)} tick=${String(row.tick).padEnd(3)} ` +
         `plants=${String(row.plants).padEnd(5)} insects=${String(row.insects).padEnd(5)} ` +
-        `o2=${String(row.o2).padEnd(6)} co2=${String(row.co2).padEnd(6)} reason=${row.reason}`,
+        `o2=${String(row.o2).padEnd(6)} co2=${String(row.co2).padEnd(6)} reason=${row.reason}`
     );
   }
 }
@@ -699,11 +663,7 @@ function main(): void {
   if (config.replayPath) {
     const replayFilePath = resolveReplayPath(config.replayPath);
     const replayPayload = loadReplay(replayFilePath);
-    const viewport = resolveReplayViewport(
-      config,
-      config.emojiMode,
-      replayPayload.replay.size,
-    );
+    const viewport = resolveReplayViewport(config, config.emojiMode, replayPayload.replay.size);
     console.log(`Replay file: ${replayFilePath}`);
     startReplayInteractive(replayPayload, viewport.width, viewport.height, {
       autoplay: config.autoplay,
@@ -730,11 +690,7 @@ function main(): void {
   }
 
   if (config.recordJsonPath) {
-    const writtenPath = writeJsonRecording(
-      result,
-      config.recordJsonPath,
-      config.recordJsonCompressed,
-    );
+    const writtenPath = writeJsonRecording(result, config.recordJsonPath, config.recordJsonCompressed);
     console.log(`Replay JSON written: ${writtenPath}`);
   }
 }

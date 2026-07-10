@@ -6,7 +6,19 @@ export interface Rng {
 }
 
 function hashSeed(input: unknown): number {
-  const str = String(input ?? 'terrarium');
+  let str: string;
+  if (typeof input === 'string') {
+    str = input;
+  } else if (input == null) {
+    str = 'terrarium';
+  } else if (typeof input === 'number' || typeof input === 'boolean' || typeof input === 'bigint') {
+    str = `${input}`;
+  } else if (typeof input === 'symbol') {
+    str = input.description ?? 'symbol';
+  } else {
+    str = JSON.stringify(input) ?? 'terrarium';
+  }
+
   let hash = 2166136261;
   for (let index = 0; index < str.length; index += 1) {
     hash ^= str.charCodeAt(index);

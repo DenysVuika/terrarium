@@ -1,6 +1,6 @@
-import type { SimContext } from '../context.ts';
-import { TERRAIN } from '../world.ts';
-import { Entity } from './entity.ts';
+import type { SimContext } from '../context';
+import { TERRAIN } from '../world';
+import { Entity } from './entity';
 
 /** Kind is an open string so new species can be registered without editing this union. */
 export type InsectKind = string;
@@ -103,11 +103,7 @@ export abstract class Insect extends Entity {
       this.cooldown -= 1;
     }
 
-    this.stepCharge = clamp(
-      this.stepCharge + config.insectStepChargePerTick,
-      0,
-      2.5,
-    );
+    this.stepCharge = clamp(this.stepCharge + config.insectStepChargePerTick, 0, 2.5);
 
     this.tickExtraLifecycle(ctx);
 
@@ -115,10 +111,7 @@ export abstract class Insect extends Entity {
     if (this.stage === 'egg' && this.stageTicks >= this.eggStageTicks) {
       this.stage = 'larva';
       this.stageTicks = 0;
-    } else if (
-      this.stage === 'larva' &&
-      this.stageTicks >= this.larvaStageTicks
-    ) {
+    } else if (this.stage === 'larva' && this.stageTicks >= this.larvaStageTicks) {
       this.stage = 'adult';
       this.stageTicks = 0;
     }
@@ -131,11 +124,7 @@ export abstract class Insect extends Entity {
     if (waterNeighbors.length > 0) {
       const drinkCell = ctx.rng.pick(waterNeighbors);
       if (drinkCell !== null) {
-        world.water[drinkCell] = clamp(
-          world.water[drinkCell] - config.insectDrinkAmount,
-          0,
-          100,
-        );
+        world.water[drinkCell] = clamp(world.water[drinkCell] - config.insectDrinkAmount, 0, 100);
       }
     } else {
       this.energy -= this.dehydrationPenalty;
@@ -148,17 +137,10 @@ export abstract class Insect extends Entity {
       this.starvationTicks = 0;
     }
 
-    if (
-      this.starvationTicks >= this.starvationLimit ||
-      this.age >= this.maxAge
-    ) {
+    if (this.starvationTicks >= this.starvationLimit || this.age >= this.maxAge) {
       this.alive = false;
       ctx.occupied.delete(this.cell);
-      world.nutrients[this.cell] = clamp(
-        world.nutrients[this.cell] + 20,
-        0,
-        300,
-      );
+      world.nutrients[this.cell] = clamp(world.nutrients[this.cell] + 20, 0, 300);
       this.onDeath(ctx);
     }
   }
@@ -169,19 +151,15 @@ export abstract class Insect extends Entity {
     const { world, rng } = ctx;
     const target = world.coords(targetCell);
 
-    const options = world
-      .neighbors8(this.cell)
-      .filter((cell) => world.isWalkable(cell) && !ctx.occupied.has(cell));
+    const options = world.neighbors8(this.cell).filter((cell) => world.isWalkable(cell) && !ctx.occupied.has(cell));
 
     if (!options.length) return false;
 
     options.sort((left, right) => {
       const leftPos = world.coords(left);
       const rightPos = world.coords(right);
-      let leftDist =
-        Math.abs(leftPos.x - target.x) + Math.abs(leftPos.y - target.y);
-      let rightDist =
-        Math.abs(rightPos.x - target.x) + Math.abs(rightPos.y - target.y);
+      let leftDist = Math.abs(leftPos.x - target.x) + Math.abs(leftPos.y - target.y);
+      let rightDist = Math.abs(rightPos.x - target.x) + Math.abs(rightPos.y - target.y);
 
       if (this.lastCell >= 0 && left === this.lastCell) leftDist += 0.35;
       if (this.lastCell >= 0 && right === this.lastCell) rightDist += 0.35;
@@ -197,9 +175,7 @@ export abstract class Insect extends Entity {
   moveRandom(ctx: SimContext): boolean {
     const { world, rng } = ctx;
 
-    const options = world
-      .neighbors8(this.cell)
-      .filter((cell) => world.isWalkable(cell) && !ctx.occupied.has(cell));
+    const options = world.neighbors8(this.cell).filter((cell) => world.isWalkable(cell) && !ctx.occupied.has(cell));
 
     if (!options.length) return false;
 
@@ -247,9 +223,7 @@ export abstract class Insect extends Entity {
     const { world } = ctx;
     const predator = world.coords(predatorCell);
 
-    const options = world
-      .neighbors8(this.cell)
-      .filter((cell) => world.isWalkable(cell) && !ctx.occupied.has(cell));
+    const options = world.neighbors8(this.cell).filter((cell) => world.isWalkable(cell) && !ctx.occupied.has(cell));
 
     if (!options.length) return;
 
@@ -257,10 +231,8 @@ export abstract class Insect extends Entity {
     options.sort((left, right) => {
       const leftPos = world.coords(left);
       const rightPos = world.coords(right);
-      let leftDist =
-        Math.abs(leftPos.x - predator.x) + Math.abs(leftPos.y - predator.y);
-      let rightDist =
-        Math.abs(rightPos.x - predator.x) + Math.abs(rightPos.y - predator.y);
+      let leftDist = Math.abs(leftPos.x - predator.x) + Math.abs(leftPos.y - predator.y);
+      let rightDist = Math.abs(rightPos.x - predator.x) + Math.abs(rightPos.y - predator.y);
 
       if (this.lastCell >= 0 && left === this.lastCell) leftDist -= 0.35;
       if (this.lastCell >= 0 && right === this.lastCell) rightDist -= 0.35;

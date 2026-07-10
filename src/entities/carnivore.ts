@@ -1,10 +1,13 @@
-import type { SimulationConfig } from '../config.ts';
-import type { SimContext } from '../context.ts';
-import { TERRAIN } from '../world.ts';
-import { CARNIVORE_BEHAVIOR_IDS, type CarnivoreBehaviorId } from './behavior.ts';
-import { resolveCarnivoreBehavior } from './behavior-factory.ts';
-import { insectRegistry } from './insect-registry.ts';
-import { Insect } from './insect.ts';
+import type { SimulationConfig } from '../config';
+import type { SimContext } from '../context';
+import {
+  CARNIVORE_BEHAVIOR_IDS,
+  type CarnivoreBehaviorId,
+  resolveCarnivoreBehavior,
+} from '@/behaviors';
+import { TERRAIN } from '../world';
+import { insectRegistry } from './insect-registry';
+import { Insect } from './insect';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));

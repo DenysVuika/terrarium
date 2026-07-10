@@ -1,0 +1,11 @@
+{
+  "options": {
+    "typeAware": true,
+    "typeCheck": true
+  },
+  "plugins": ["typescript"],
+  "rules": {
+    // "typescript/no-floating-promises": ["error", { "ignoreVoid": true }],
+    "typescript/no-unsafe-assignment": "warn"
+  }
+}

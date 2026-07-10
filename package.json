@@ -6,13 +6,32 @@
   "type": "module",
   "description": "Prototype ecosystem simulation for terrarium mechanics",
   "scripts": {
-    "simulate": "node src/simulate.ts --record-csv runs/latest.csv --record-json runs/latest.json.gz",
-    "simulate:sweep": "node src/simulate.ts --sweep",
-    "simulate:replay": "node src/simulate.ts --replay latest",
-    "typecheck": "tsc --project tsconfig.json"
+    "build": "tsdown",
+    "build:watch": "tsdown --watch",
+    "clean": "rm -rf dist",
+    "start": "node dist/simulate.mjs",
+    "presimulate": "pnpm build",
+    "simulate": "node dist/simulate.mjs --record-csv runs/latest.csv --record-json runs/latest.json.gz",
+    "presimulate:sweep": "pnpm build",
+    "simulate:sweep": "node dist/simulate.mjs --sweep",
+    "prereplay": "pnpm build",
+    "replay": "node dist/simulate.mjs --replay latest",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "oxlint src tests",
+    "lint:fix": "oxlint --fix src tests",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "check": "pnpm typecheck && pnpm build && pnpm lint && pnpm test"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
-    "typescript": "^5.9.2"
+    "oxfmt": "^0.58.0",
+    "oxlint": "^1.73.0",
+    "oxlint-tsgolint": "^0.24.0",
+    "tsdown": "^0.22.4",
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.10"
   }
 }

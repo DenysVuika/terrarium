@@ -1,6 +1,6 @@
-import type { SimulationConfig } from '../config.ts';
-import type { Rng } from '../rng.ts';
-import type { Insect } from './insect.ts';
+import type { SimulationConfig } from '../config';
+import type { Rng } from '../rng';
+import type { Insect } from './insect';
 
 /**
  * Defines how a species is created, seeded, and represented in the simulation.
@@ -31,13 +31,7 @@ export interface InsectSpeciesDefinition {
   /** How many insects of this species to spawn at the start of a run. */
   initialCount(config: SimulationConfig): number;
   /** Creates a new insect instance. Called during seeding and offspring spawning. */
-  create(
-    id: string,
-    cell: number,
-    energy: number,
-    config: SimulationConfig,
-    behaviorId: string,
-  ): Insect;
+  create(id: string, cell: number, energy: number, config: SimulationConfig, behaviorId: string): Insect;
   /**
    * Optional hook called on each newly seeded insect right after `create`.
    * Use for species-specific initial state that can't be set in the constructor

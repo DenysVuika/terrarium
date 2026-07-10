@@ -1,4 +1,4 @@
-import { BaseCarnivoreBehavior } from './base-carnivore-behavior.ts';
+import { BaseCarnivoreBehavior } from './base-carnivore-behavior';
 
 export class AggressiveCarnivoreBehavior extends BaseCarnivoreBehavior {
   constructor() {

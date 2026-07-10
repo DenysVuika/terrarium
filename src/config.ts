@@ -1,7 +1,4 @@
-import type {
-  CarnivoreBehaviorId,
-  HerbivoreBehaviorId,
-} from './entities/behavior.ts';
+import type { CarnivoreBehaviorId, HerbivoreBehaviorId } from '@/behaviors';
 
 // Re-export for external consumers who need the id types.
 export type { HerbivoreBehaviorId, CarnivoreBehaviorId };

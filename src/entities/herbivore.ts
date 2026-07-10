@@ -1,24 +1,14 @@
-import type { SimulationConfig } from '../config.ts';
-import type { SimContext } from '../context.ts';
-import {
-  HERBIVORE_BEHAVIOR_IDS,
-  type HerbivoreBehaviorId,
-} from './behavior.ts';
-import { resolveHerbivoreBehavior } from './behavior-factory.ts';
-import { insectRegistry } from './insect-registry.ts';
-import { Insect } from './insect.ts';
+import type { SimulationConfig } from '../config';
+import type { SimContext } from '../context';
+import { HERBIVORE_BEHAVIOR_IDS, type HerbivoreBehaviorId, resolveHerbivoreBehavior } from '@/behaviors';
+import { insectRegistry } from './insect-registry';
+import { Insect } from './insect';
 
 export class Herbivore extends Insect {
   readonly behaviorId: HerbivoreBehaviorId;
   private readonly _config: SimulationConfig;
 
-  constructor(
-    id: string,
-    cell: number,
-    energy: number,
-    config: SimulationConfig,
-    behaviorId: HerbivoreBehaviorId,
-  ) {
+  constructor(id: string, cell: number, energy: number, config: SimulationConfig, behaviorId: HerbivoreBehaviorId) {
     super('herbivore', id, cell, energy);
     this._config = config;
     this.behaviorId = behaviorId;
@@ -66,9 +56,7 @@ export class Herbivore extends Insect {
 
   /** Bias random movement toward cells with nearby plants. */
   protected extraMoveBias(cell: number, ctx: SimContext): number {
-    return (
-      ctx.world.neighbors8(cell).filter((c) => ctx.plants.has(c)).length * 0.7
-    );
+    return ctx.world.neighbors8(cell).filter((c) => ctx.plants.has(c)).length * 0.7;
   }
 
   protected tickBehavior(ctx: SimContext): void {
