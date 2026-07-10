@@ -12,7 +12,9 @@ import {
 } from './config';
 import {
   runSimulation,
+  Simulator,
   type Outcome,
+  type ReplayFrame,
   type ReplayPayload,
   type SimulationResult,
 } from './simulator';
@@ -580,7 +582,9 @@ function renderLiveFrame(
   lines.push(
     `Board view: ${width}x${height} ${width === meta.size && height === meta.size ? '(native)' : `(sampled from ${meta.size}x${meta.size})`}`,
   );
-  lines.push('Controls: Ctrl+C to stop stream.');
+  lines.push(
+    'Controls: Right/Enter step, Space autoplay, Up/Down speed, e mode, n viewport, q quits.',
+  );
   lines.push('');
 
   for (let py = 0; py < height; py += 1) {
@@ -635,67 +639,285 @@ function renderLiveFrame(
   process.stdout.write(`${lines.join('\n')}\n`);
 }
 
-function sleepMs(milliseconds: number): void {
-  const delay = Math.max(0, Math.floor(milliseconds));
-  if (delay === 0) {
-    return;
-  }
+function runStream(config: SimulationCliConfig): Promise<void> {
+  return new Promise((resolve) => {
+    const viewport = resolveReplayViewport(
+      config,
+      config.emojiMode,
+      config.world.size,
+    );
+    const simulator = new Simulator(config);
+    const initialState = simulator.snapshot();
+    const shouldCaptureReplay = Boolean(config.recordJsonPath);
+    const replayFrames: ReplayFrame[] = shouldCaptureReplay
+      ? [simulator.buildReplayFrame(initialState)]
+      : [];
 
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay);
-}
+    let fps = Math.max(1, Number(config.replayFps) || 4);
+    let isPlaying = true;
+    let emojiMode = config.emojiMode;
+    let nativeSize = config.nativeSize;
+    let timer: NodeJS.Timeout | null = null;
+    let isDone = false;
 
-function runStream(config: SimulationCliConfig): void {
-  const viewport = resolveReplayViewport(
-    config,
-    config.emojiMode,
-    config.world.size,
-  );
-  const frameDelayMs = Math.round(1000 / Math.max(1, config.replayFps));
-  const previousFrames: Array<{
-    tick: number;
-    events?: string[];
-  }> = [];
+    const sampledAsciiViewport = {
+      width: viewport.width,
+      height: viewport.height,
+    };
+    const sampledEmojiViewport = config.autoFit
+      ? {
+          width: Math.min(sampledAsciiViewport.width, 40),
+          height: Math.min(sampledAsciiViewport.height, 12),
+        }
+      : sampledAsciiViewport;
 
-  const result = runSimulation(config, {
-    captureFrames: false,
-    streamFrames: true,
-    onFrame(frame, meta) {
+    let renderWidth = viewport.width;
+    let renderHeight = viewport.height;
+
+    const updateViewport = (): void => {
+      if (nativeSize) {
+        renderWidth = simulator.world.size;
+        renderHeight = simulator.world.size;
+        return;
+      }
+
+      renderWidth = emojiMode
+        ? sampledEmojiViewport.width
+        : sampledAsciiViewport.width;
+      renderHeight = emojiMode
+        ? sampledEmojiViewport.height
+        : sampledAsciiViewport.height;
+    };
+
+    const previousFrames: Array<{
+      tick: number;
+      events?: string[];
+    }> = [];
+
+    const buildMeta = (): {
+      tick: number;
+      totalTicks: number;
+      size: number;
+      terrain: Uint8Array;
+    } => ({
+      tick: simulator.tick,
+      totalTicks: simulator.config.world.ticks,
+      size: simulator.world.size,
+      terrain: simulator.world.terrain,
+    });
+
+    const currentFrame = (): ReplayFrame => {
+      if (simulator.tick === 0) {
+        return simulator.buildReplayFrame(initialState);
+      }
+      return simulator.buildReplayFrame(
+        simulator.history[simulator.history.length - 1],
+      );
+    };
+
+    const draw = (): void => {
       renderLiveFrame(
-        frame,
-        meta,
-        viewport.width,
-        viewport.height,
+        currentFrame(),
+        buildMeta(),
+        renderWidth,
+        renderHeight,
         {
-          fps: Math.max(1, config.replayFps),
-          emojiMode: config.emojiMode,
+          fps,
+          emojiMode,
         },
         previousFrames,
       );
+    };
+
+    const stopAuto = (): void => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      isPlaying = false;
+    };
+
+    const finish = (abortedByUser = false): void => {
+      if (isDone) {
+        return;
+      }
+      isDone = true;
+      stopAuto();
+      cleanupInput();
+
+      if (abortedByUser) {
+        console.log(`Stream stopped at tick ${simulator.tick}.`);
+        resolve();
+        return;
+      }
+
+      simulator.finalizeOutcomeIfNeeded();
+
+      const result: SimulationResult = {
+        config,
+        outcome: simulator.outcome!,
+        finalTick: simulator.tick,
+        initialState,
+        finalState: simulator.snapshot(),
+        history: simulator.history,
+        diagnostics: {
+          herbivoreBirths: simulator.totalStats.herbivoreBirths,
+          carnivoreBirths: simulator.totalStats.carnivoreBirths,
+          herbivoreDeaths: simulator.totalStats.herbivoreDeaths,
+          carnivoreDeaths: simulator.totalStats.carnivoreDeaths,
+          herbivoreKillsByCarnivores:
+            simulator.totalStats.herbivoreKillsByCarnivores,
+          carnivoreKillsByCarnivores:
+            simulator.totalStats.carnivoreKillsByCarnivores,
+        },
+        replay: shouldCaptureReplay
+          ? {
+              version: 1,
+              generatedAt: new Date().toISOString(),
+              size: simulator.world.size,
+              terrain: Array.from(simulator.world.terrain),
+              frames: replayFrames,
+            }
+          : null,
+      };
+
+      printRun(result);
+
+      if (config.recordCsvPath) {
+        writeCsv(result, config.recordCsvPath);
+        console.log(`CSV written: ${config.recordCsvPath}`);
+      }
+
+      if (config.recordJsonPath) {
+        const writtenPath = writeJsonRecording(
+          result,
+          config.recordJsonPath,
+          config.recordJsonCompressed,
+        );
+        console.log(`Replay JSON written: ${writtenPath}`);
+      }
+
+      resolve();
+    };
+
+    const tickOnce = (): void => {
+      if (isDone) {
+        return;
+      }
+
+      if (simulator.outcome || simulator.tick >= simulator.config.world.ticks) {
+        finish();
+        return;
+      }
+
+      simulator.step();
+      simulator.finalizeOutcomeIfNeeded();
+
+      const frame = simulator.buildReplayFrame(
+        simulator.history[simulator.history.length - 1],
+      );
+      if (shouldCaptureReplay) {
+        replayFrames.push(frame);
+      }
+
+      draw();
 
       previousFrames.push({ tick: frame.tick, events: frame.events });
       if (previousFrames.length > 5) {
         previousFrames.shift();
       }
 
-      sleepMs(frameDelayMs);
-    },
+      if (simulator.outcome || simulator.tick >= simulator.config.world.ticks) {
+        finish();
+      }
+    };
+
+    const startAuto = (): void => {
+      stopAuto();
+      isPlaying = true;
+      timer = setInterval(tickOnce, Math.round(1000 / fps));
+    };
+
+    const stdin = process.stdin;
+    let inputReady = false;
+
+    const cleanupInput = (): void => {
+      if (!inputReady) {
+        return;
+      }
+      stdin.removeListener('data', onKey);
+      stdin.setRawMode(false);
+      stdin.pause();
+      inputReady = false;
+    };
+
+    const onKey = (key: string): void => {
+      if (key === '\u0003' || key === 'q') {
+        finish(true);
+        return;
+      }
+
+      if (key === ' ') {
+        if (isPlaying) {
+          stopAuto();
+        } else {
+          startAuto();
+        }
+        draw();
+        return;
+      }
+
+      if (key === '\r' || key === '\n' || key === '\u001b[C') {
+        stopAuto();
+        tickOnce();
+        return;
+      }
+
+      if (key === '\u001b[A') {
+        fps = Math.min(20, fps + 1);
+        if (isPlaying) {
+          startAuto();
+        }
+        draw();
+        return;
+      }
+
+      if (key === '\u001b[B') {
+        fps = Math.max(1, fps - 1);
+        if (isPlaying) {
+          startAuto();
+        }
+        draw();
+        return;
+      }
+
+      if (key === 'e' || key === 'E') {
+        emojiMode = !emojiMode;
+        updateViewport();
+        draw();
+        return;
+      }
+
+      if (key === 'n' || key === 'N') {
+        nativeSize = !nativeSize;
+        updateViewport();
+        draw();
+      }
+    };
+
+    updateViewport();
+    draw();
+
+    if (process.stdin.isTTY) {
+      stdin.setRawMode(true);
+      stdin.resume();
+      stdin.setEncoding('utf8');
+      stdin.on('data', onKey);
+      inputReady = true;
+    }
+
+    startAuto();
   });
-
-  printRun(result);
-
-  if (config.recordCsvPath) {
-    writeCsv(result, config.recordCsvPath);
-    console.log(`CSV written: ${config.recordCsvPath}`);
-  }
-
-  if (config.recordJsonPath) {
-    const writtenPath = writeJsonRecording(
-      result,
-      config.recordJsonPath,
-      config.recordJsonCompressed,
-    );
-    console.log(`Replay JSON written: ${writtenPath}`);
-  }
 }
 
 function startReplayInteractive(
@@ -976,7 +1198,7 @@ function runSweep(baseConfig: SimulationConfig): void {
   }
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const config = parseArgs(process.argv.slice(2));
 
   if (config.stream && config.replayPath) {
@@ -1008,7 +1230,7 @@ function main(): void {
   }
 
   if (config.stream) {
-    runStream(config);
+    await runStream(config);
     return;
   }
 
@@ -1031,10 +1253,8 @@ function main(): void {
   }
 }
 
-try {
-  main();
-} catch (error) {
+void main().catch((error) => {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`Error: ${message}`);
   process.exitCode = 1;
-}
+});

@@ -78,7 +78,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-class Simulator {
+export class Simulator {
   config: SimulationConfig;
   rng: Rng;
   world: World;
@@ -211,12 +211,7 @@ class Simulator {
       }
     }
 
-    if (!this.outcome && this.tick >= this.config.world.ticks) {
-      this.outcome = {
-        type: 'win',
-        reason: `survived ${this.config.world.ticks} ticks`,
-      };
-    }
+    this.finalizeOutcomeIfNeeded();
 
     return {
       config: this.config,
@@ -244,6 +239,15 @@ class Simulator {
             }
           : null,
     };
+  }
+
+  finalizeOutcomeIfNeeded(): void {
+    if (!this.outcome && this.tick >= this.config.world.ticks) {
+      this.outcome = {
+        type: 'win',
+        reason: `survived ${this.config.world.ticks} ticks`,
+      };
+    }
   }
 
   buildReplayFrame(snapshot: Snapshot): ReplayFrame {

@@ -305,6 +305,16 @@ pnpm replay
 pnpm stream -- --ticks 100 --fps 2
 ```
 
+Stream controls:
+
+- `Right Arrow` or `Enter`: advance one tick (pauses autoplay)
+- `Space`: toggle autoplay on/off
+- `Up Arrow`: increase streaming speed
+- `Down Arrow`: decrease streaming speed
+- `e`: toggle emoji/ascii mode
+- `n`: toggle sampled/native viewport mode
+- `q` or `Ctrl+C`: quit stream early
+
 ### **Build and Quality Pipeline**
 
 - Typecheck:
