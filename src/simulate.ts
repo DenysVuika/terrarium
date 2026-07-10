@@ -72,7 +72,7 @@ function parseConfigFile(
   filePath: string,
 ): DeepPartial<SimulationConfig> {
   const ext = path.extname(filePath).toLowerCase();
-  const parsed =
+  const parsed: unknown =
     ext === '.yaml' || ext === '.yml'
       ? parseYaml(raw)
       : ext === '.json'

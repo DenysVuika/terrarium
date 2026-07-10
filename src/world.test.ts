@@ -64,4 +64,37 @@ describe('World', () => {
     expect(world.isWalkable(1)).toBe(false);
     expect(world.isWalkable(3)).toBe(false);
   });
+
+  it('initializes per-cell resources by terrain type', () => {
+    const world = new World(2, createPredictableRng());
+    world.terrain = new Uint8Array([
+      TERRAIN.SOIL,
+      TERRAIN.WATER,
+      TERRAIN.SAND,
+      TERRAIN.EMPTY,
+    ]);
+
+    world.initializeResources();
+
+    expect(world.nutrients).toEqual(new Float32Array([200, 0, 0, 0]));
+    expect(world.water).toEqual(new Float32Array([50, 100, 10, 15]));
+  });
+
+  it('paintPatches can recover from empty frontier and skip undefined/type-matching entries', () => {
+    const sequence = [3, 0, 1];
+    const rng: Rng = {
+      next: () => 0,
+      int: () => sequence.shift() ?? 0,
+      chance: () => false,
+      pick: (items) => items[0] ?? null,
+    };
+
+    const world = new World(2, createPredictableRng());
+    world.rng = rng;
+    world.terrain = new Uint8Array(4).fill(TERRAIN.EMPTY);
+
+    world.paintPatches(TERRAIN.SOIL, 1, 3, 3);
+
+    expect(world.terrain.includes(TERRAIN.SOIL)).toBe(true);
+  });
 });
