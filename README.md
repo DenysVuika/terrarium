@@ -1,4 +1,4 @@
-# 🌿 Terrarium Ecosystem Simulation: Project Instructions
+# 🌿 Terrarium Ecosystem Simulation
 
 ---
 
