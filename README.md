@@ -14,7 +14,6 @@
 - **Resource Cycles**: Global O₂/CO₂ pools, per-cell water/nutrients.
 - **Player Actions**: Toggle lid (light/evaporation), add water/soil.
 
-![Terrarium](assets/terrarium.png)
 ![Web UI](assets/webui-01.png)
 
 ## 🌐 Web UI
@@ -371,6 +370,8 @@ pnpm simulate --ticks 100 --seed my-seed --record-csv runs/my-seed.csv --record-
 ```bash
 pnpm replay
 ```
+
+![Terrarium](assets/terrarium.png)
 
 - Stream the simulation live tick-by-tick (no replay JSON required):
 
