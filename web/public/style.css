@@ -103,6 +103,19 @@ body {
   min-width: 56px;
 }
 
+.hud-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(139, 233, 210, 0.35);
+  background: rgba(15, 46, 52, 0.45);
+  color: var(--accent);
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
 .hud-stats {
   margin: 0;
   display: grid;
@@ -138,39 +151,97 @@ body {
   margin: 0;
   padding: 0;
   list-style: none;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
-.hud-legend li {
-  display: inline-flex;
-  align-items: center;
+.legend-card {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(166, 198, 226, 0.2);
+  border-radius: 10px;
+  background: rgba(22, 30, 45, 0.45);
+}
+
+.legend-card strong {
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.legend-card small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+
+.legend-sprites {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 8px;
+}
+
+.legend-sprite {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
   color: var(--muted);
 }
 
-.dot {
-  width: 10px;
-  height: 10px;
+.legend-sprite img {
+  width: 100%;
+  max-width: 36px;
+  height: 36px;
+  object-fit: contain;
+  flex: 0 0 36px;
+  border-radius: 6px;
+  padding: 4px;
+  background: rgba(9, 14, 22, 0.8);
+  border: 1px solid rgba(166, 198, 226, 0.24);
+}
+
+.legend-remains-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid rgba(166, 198, 226, 0.24);
+  background: rgba(9, 14, 22, 0.8);
+  display: block;
+  position: relative;
+}
+
+.legend-remains-icon::before {
+  content: '';
+  display: block;
+  position: absolute;
+  inset: 0;
+  margin: auto;
+}
+
+.legend-remains-icon-herbivore::before {
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  display: inline-block;
+  background: rgba(168, 191, 127, 0.72);
 }
 
-.dot.plant {
-  background: var(--plant);
+.legend-remains-icon-carnivore::before {
+  width: 20px;
+  height: 9px;
+  border-radius: 3px;
+  background: rgba(212, 182, 143, 0.78);
 }
 
-.dot.herbivore {
-  background: var(--herbivore);
-}
-
-.dot.carnivore {
-  background: var(--carnivore);
-}
-
-.dot.egg {
-  background: var(--egg);
+.legend-sprite em {
+  font-style: normal;
+  font-size: 0.68rem;
+  text-align: center;
+  line-height: 1.2;
 }
 
 #pixi-container {
@@ -206,7 +277,9 @@ body {
 
 .hover-inspector.pinned {
   border-color: rgba(139, 233, 210, 0.9);
-  box-shadow: 0 0 0 1px rgba(139, 233, 210, 0.35), 0 10px 22px rgba(0, 0, 0, 0.35);
+  box-shadow:
+    0 0 0 1px rgba(139, 233, 210, 0.35),
+    0 10px 22px rgba(0, 0, 0, 0.35);
 }
 
 .hover-inspector.hidden {
@@ -245,5 +318,9 @@ body {
 
   #pixi-container {
     min-height: min(72vh, 700px);
+  }
+
+  .hud-legend {
+    grid-template-columns: 1fr;
   }
 }

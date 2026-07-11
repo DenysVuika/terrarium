@@ -17,6 +17,7 @@ type SimulationStatus = {
   phaseRemaining: string;
   phaseProgress: number;
   light: number;
+  lid: string;
   plants: number;
   herbivores: number;
   carnivores: number;
@@ -27,6 +28,18 @@ type SimulationStatus = {
   outcome: string;
   events: string;
 };
+
+function getLidEffectLabel(lidOpen: boolean): string {
+  return lidOpen
+    ? 'Open: light 100%, evaporation ON'
+    : 'Closed: light 50%, evaporation OFF';
+}
+
+function getLidHydrationHint(lidOpen: boolean): string {
+  return lidOpen
+    ? 'Hydration note: evaporation is active, but water tiles can still rise because seepage may exceed evaporation.'
+    : 'Hydration note: evaporation is disabled, so moisture tends to accumulate from rain and seepage.';
+}
 
 type HoverStatus = {
   visible: boolean;
@@ -135,6 +148,7 @@ class TerrariumScene {
   dragLastY: number;
   ticksPerSecond: number;
   timeScalePreset: TimeScalePreset;
+  lidOpen: boolean;
   running: boolean;
   elapsed: number;
   visualTime: number;
@@ -157,6 +171,7 @@ class TerrariumScene {
     this.onStatus = onStatus;
     this.textures = textures;
     this.timeScalePreset = '60';
+    this.lidOpen = true;
     this.simulator = this.createSimulator();
     this.size = this.simulator.world.size;
     this.baseCellSize = this.computeCellSize();
@@ -217,8 +232,15 @@ class TerrariumScene {
   createSimulator(): Simulator {
     const config = getDefaultConfig();
     config.world.ticks = 500;
+    config.world.lidOpen = this.lidOpen;
     this.applyTimeScaleToConfig(config, this.timeScalePreset);
     return new Simulator(config);
+  }
+
+  setLidOpen(lidOpen: boolean): void {
+    this.lidOpen = lidOpen;
+    this.simulator.config.world.lidOpen = lidOpen;
+    this.pushStatus();
   }
 
   applyTimeScaleToConfig(
@@ -1083,6 +1105,7 @@ class TerrariumScene {
       phaseRemaining,
       phaseProgress,
       light: snapshot.light,
+      lid: this.simulator.config.world.lidOpen ? 'Open' : 'Closed',
       plants: snapshot.plants,
       herbivores: snapshot.herbivores,
       carnivores: snapshot.carnivores,
@@ -1154,15 +1177,60 @@ function createHud(scene: TerrariumScene): void {
         <input id="speed" type="range" min="0.2" max="8" step="0.1" value="1" />
       </label>
       <output id="speed-value">1.0 tps</output>
+      <label for="lid-mode">
+        Lid
+        <select id="lid-mode">
+          <option value="open" selected>Open</option>
+          <option value="closed">Closed</option>
+        </select>
+      </label>
+      <output id="lid-effect" class="hud-badge" aria-live="polite"></output>
     </div>
     <p class="hud-tip">Tip: drag to pan, mouse wheel or trackpad scroll to zoom, click a cell to pin inspector, click again to unpin.</p>
+    <p id="lid-hint" class="hud-tip"></p>
     <dl id="stats" class="hud-stats" aria-live="polite"></dl>
     <p id="events" class="hud-events"></p>
     <ul class="hud-legend" aria-label="Entity legend">
-      <li><span class="dot plant"></span>Plants (sprite stages)</li>
-      <li><span class="dot herbivore"></span>Herbivores: default, forager, larva</li>
-      <li><span class="dot carnivore"></span>Carnivores: default, aggressive, passive, larva</li>
-      <li><span class="dot egg"></span>Eggs</li>
+      <li class="legend-card">
+        <strong>Plant states</strong>
+        <div class="legend-sprites">
+          <span class="legend-sprite"><img src="/assets/sprites/plant-sprout.svg" alt="Plant sprout" /><em>sprout</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/plant-mid.svg" alt="Plant mid stage" /><em>mid</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/plant-mature.svg" alt="Plant mature stage" /><em>mature</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/plant-wilted.svg" alt="Plant wilted state" /><em>wilted</em></span>
+        </div>
+      </li>
+      <li class="legend-card">
+        <strong>Herbivore states</strong>
+        <div class="legend-sprites">
+          <span class="legend-sprite"><img src="/assets/sprites/egg-herbivore.svg" alt="Herbivore egg" /><em>egg</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/herbivore-larva.svg" alt="Herbivore larva" /><em>larva</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/herbivore-default.svg" alt="Herbivore default adult" /><em>adult-default</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/herbivore-forager.svg" alt="Herbivore forager adult" /><em>adult-forager</em></span>
+        </div>
+      </li>
+      <li class="legend-card">
+        <strong>Carnivore states</strong>
+        <div class="legend-sprites">
+          <span class="legend-sprite"><img src="/assets/sprites/egg-carnivore.svg" alt="Carnivore egg" /><em>egg</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/carnivore-larva.svg" alt="Carnivore larva" /><em>larva</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/carnivore-default.svg" alt="Carnivore default adult" /><em>adult-default</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/carnivore-aggressive.svg" alt="Carnivore aggressive adult" /><em>adult-aggressive</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/carnivore-passive.svg" alt="Carnivore passive adult" /><em>adult-passive</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/carnivore-default.svg" alt="Carnivore default attacking state" /><em>attacking-default</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/carnivore-aggressive.svg" alt="Carnivore aggressive attacking state" /><em>attacking-aggressive</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/carnivore-passive.svg" alt="Carnivore passive attacking state" /><em>attacking-passive</em></span>
+        </div>
+        <small>Attacking currently reuses carnivore adult sprites (no dedicated attack sprite asset yet).</small>
+      </li>
+      <li class="legend-card">
+        <strong>Remains state</strong>
+        <div class="legend-sprites">
+          <span class="legend-sprite"><span class="legend-remains-icon legend-remains-icon-herbivore" aria-hidden="true"></span><em>herbivore remains</em></span>
+          <span class="legend-sprite"><span class="legend-remains-icon legend-remains-icon-carnivore" aria-hidden="true"></span><em>carnivore remains</em></span>
+        </div>
+        <small>Fading ground decals after herbivore/carnivore death.</small>
+      </li>
     </ul>
   `;
 
@@ -1184,6 +1252,16 @@ function createHud(scene: TerrariumScene): void {
   const speedValue = document.getElementById(
     'speed-value',
   ) as HTMLOutputElement;
+  const lidModeSelect = document.getElementById(
+    'lid-mode',
+  ) as HTMLSelectElement;
+  const lidEffect = document.getElementById('lid-effect') as HTMLOutputElement;
+  const lidHint = document.getElementById('lid-hint') as HTMLParagraphElement;
+
+  lidModeSelect.value = scene.lidOpen ? 'open' : 'closed';
+  lidEffect.value = getLidEffectLabel(scene.lidOpen);
+  lidEffect.textContent = lidEffect.value;
+  lidHint.textContent = getLidHydrationHint(scene.lidOpen);
 
   playPauseButton.addEventListener('click', () => {
     scene.setRunning(!scene.running);
@@ -1218,6 +1296,14 @@ function createHud(scene: TerrariumScene): void {
     speedValue.value = `${speed.toFixed(1)} tps`;
   });
 
+  lidModeSelect.addEventListener('change', () => {
+    const lidOpen = lidModeSelect.value === 'open';
+    scene.setLidOpen(lidOpen);
+    lidEffect.value = getLidEffectLabel(lidOpen);
+    lidEffect.textContent = lidEffect.value;
+    lidHint.textContent = getLidHydrationHint(lidOpen);
+  });
+
   scene.onStatus = (status) => {
     const stats = document.getElementById('stats');
     const events = document.getElementById('events');
@@ -1234,6 +1320,7 @@ function createHud(scene: TerrariumScene): void {
         <div><dt>Phase</dt><dd>${status.phase}</dd></div>
         <div><dt>Phase Ends In</dt><dd>${status.phaseRemaining}</dd></div>
         <div><dt>Phase Progress</dt><dd>${phasePercent}%</dd></div>
+        <div><dt>Lid</dt><dd>${status.lid}</dd></div>
         <div><dt>Light</dt><dd>${status.light}</dd></div>
         <div><dt>Plants</dt><dd>${status.plants}</dd></div>
         <div><dt>Herbivores</dt><dd>${status.herbivores}</dd></div>
@@ -1249,6 +1336,12 @@ function createHud(scene: TerrariumScene): void {
     if (events) {
       events.textContent = status.events;
     }
+
+    const lidOpen = status.lid === 'Open';
+    lidModeSelect.value = lidOpen ? 'open' : 'closed';
+    lidEffect.value = getLidEffectLabel(lidOpen);
+    lidEffect.textContent = lidEffect.value;
+    lidHint.textContent = getLidHydrationHint(lidOpen);
   };
 
   scene.onHover = (status) => {

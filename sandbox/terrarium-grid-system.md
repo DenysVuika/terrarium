@@ -8,6 +8,11 @@ flowchart TD
     B --> E[Sand: Walkable, Higher Move Cost]
     B --> F[Empty: Default]
 
+    AA[Terrain Transitions with Hysteresis] --> AB[Soil -> Sand: water <= 1 for 12 ticks]
+    AB --> AC[On convert: keep 30% nutrients]
+    AA --> AD[Sand -> Soil: water >= 30 for 18 ticks]
+    AD --> AE[On convert: nutrient floor = 15]
+
     G[Patches: Connected Terrain Regions] --> H[Soil / Water / Sand Blobs]
 
     I[Adjacency Rules] --> J[Plants: 4-neighbor spread]
