@@ -93,4 +93,44 @@ describe('Simulator lid mechanics', () => {
     // Water terrain receives seepage baseline each tick, which can mask evaporation.
     expect(simulator.world.water[0]).toBeCloseTo(11.04, 6);
   });
+
+  it('turns dry soil into sand after configured drought streak and retains nutrients fractionally', () => {
+    const simulator = createBareSimulator(true);
+
+    simulator.config.world.terrainTransition.soilToSandTicks = 2;
+    simulator.config.world.terrainTransition.soilToSandWaterMax = 1;
+    simulator.config.world.terrainTransition.soilToSandNutrientRetention = 0.3;
+    simulator.config.world.terrainTransition.sandToSoilTicks = 999;
+
+    simulator.world.terrain.fill(TERRAIN.SOIL);
+    simulator.world.water.fill(0.4);
+    simulator.world.nutrients.fill(100);
+
+    simulator.processWeatherAndCellResources();
+    expect(simulator.world.terrain[0]).toBe(TERRAIN.SOIL);
+
+    simulator.processWeatherAndCellResources();
+    expect(simulator.world.terrain[0]).toBe(TERRAIN.SAND);
+    expect(simulator.world.nutrients[0]).toBeCloseTo(30.06, 4);
+  });
+
+  it('recovers wet sand into soil after configured wet streak and applies nutrient floor', () => {
+    const simulator = createBareSimulator(false);
+
+    simulator.config.world.terrainTransition.sandToSoilTicks = 2;
+    simulator.config.world.terrainTransition.sandToSoilWaterMin = 30;
+    simulator.config.world.terrainTransition.sandToSoilNutrientFloor = 15;
+    simulator.config.world.terrainTransition.soilToSandTicks = 999;
+
+    simulator.world.terrain.fill(TERRAIN.SAND);
+    simulator.world.water.fill(40);
+    simulator.world.nutrients.fill(2);
+
+    simulator.processWeatherAndCellResources();
+    expect(simulator.world.terrain[0]).toBe(TERRAIN.SAND);
+
+    simulator.processWeatherAndCellResources();
+    expect(simulator.world.terrain[0]).toBe(TERRAIN.SOIL);
+    expect(simulator.world.nutrients[0]).toBeCloseTo(15, 6);
+  });
 });

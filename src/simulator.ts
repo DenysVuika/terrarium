@@ -97,6 +97,8 @@ export class Simulator {
   currentTickEvents: string[];
   tickStats: TickStats;
   totalStats: TickStats;
+  drySoilTicksByCell: Uint16Array;
+  wetSandTicksByCell: Uint16Array;
 
   constructor(config: SimulationConfig) {
     this.config = config;
@@ -122,6 +124,8 @@ export class Simulator {
     this.currentTickEvents = [];
     this.tickStats = this.createTickStats();
     this.totalStats = this.createTickStats();
+    this.drySoilTicksByCell = new Uint16Array(this.world.length);
+    this.wetSandTicksByCell = new Uint16Array(this.world.length);
 
     this.seedInitialPopulation();
   }
@@ -518,8 +522,11 @@ export class Simulator {
   processWeatherAndCellResources(): void {
     const { biome, climate, world } = this.config;
     const maxNutrients = world.nutrientsMax;
+    const terrainTransition = world.terrainTransition;
     let rainEvents = 0;
     let droughtEvents = 0;
+    let soilToSandEvents = 0;
+    let sandToSoilEvents = 0;
 
     for (let index = 0; index < this.world.length; index += 1) {
       if (this.rng.chance(climate.rainChance)) {
@@ -555,12 +562,63 @@ export class Simulator {
 
       this.world.water[index] = clamp(this.world.water[index], 0, 100);
       this.world.nutrients[index] = clamp(this.world.nutrients[index], 0, maxNutrients);
+
+      const terrain = this.world.terrain[index];
+      if (terrain === TERRAIN.SOIL) {
+        const isDry = this.world.water[index] <= terrainTransition.soilToSandWaterMax;
+        this.drySoilTicksByCell[index] = isDry
+          ? this.drySoilTicksByCell[index] + 1
+          : 0;
+        this.wetSandTicksByCell[index] = 0;
+
+        if (this.drySoilTicksByCell[index] >= terrainTransition.soilToSandTicks) {
+          this.world.terrain[index] = TERRAIN.SAND;
+          this.world.nutrients[index] = clamp(
+            this.world.nutrients[index] * terrainTransition.soilToSandNutrientRetention,
+            0,
+            maxNutrients,
+          );
+          this.drySoilTicksByCell[index] = 0;
+          this.wetSandTicksByCell[index] = 0;
+          soilToSandEvents += 1;
+        }
+      } else if (terrain === TERRAIN.SAND) {
+        const isWet = this.world.water[index] >= terrainTransition.sandToSoilWaterMin;
+        this.wetSandTicksByCell[index] = isWet
+          ? this.wetSandTicksByCell[index] + 1
+          : 0;
+        this.drySoilTicksByCell[index] = 0;
+
+        if (this.wetSandTicksByCell[index] >= terrainTransition.sandToSoilTicks) {
+          this.world.terrain[index] = TERRAIN.SOIL;
+          this.world.nutrients[index] = clamp(
+            Math.max(
+              this.world.nutrients[index],
+              terrainTransition.sandToSoilNutrientFloor,
+            ),
+            0,
+            maxNutrients,
+          );
+          this.wetSandTicksByCell[index] = 0;
+          this.drySoilTicksByCell[index] = 0;
+          sandToSoilEvents += 1;
+        }
+      } else {
+        this.drySoilTicksByCell[index] = 0;
+        this.wetSandTicksByCell[index] = 0;
+      }
     }
 
     if (rainEvents > 0)
       this.emitEvent({ type: 'weather-rain', cells: rainEvents });
     if (droughtEvents > 0)
       this.emitEvent({ type: 'weather-drought', cells: droughtEvents });
+    if (soilToSandEvents > 0) {
+      this.addEvent(`${soilToSandEvents} soil cells turned into sand`);
+    }
+    if (sandToSoilEvents > 0) {
+      this.addEvent(`${sandToSoilEvents} sand cells recovered into soil`);
+    }
   }
 
   updateGlobalGases(light: number): void {

@@ -15,6 +15,20 @@ export const DEFAULT_CONFIG = {
     seed: 'prototype-1',
     // Whether the terrarium lid starts open.
     lidOpen: true,
+    terrainTransition: {
+      // Soil dries into sand after this many consecutive low-water ticks.
+      soilToSandTicks: 12,
+      // Water threshold for counting a dry soil tick.
+      soilToSandWaterMax: 1,
+      // Fraction of soil nutrients retained when converting to sand.
+      soilToSandNutrientRetention: 0.3,
+      // Sand recovers into soil after this many consecutive wet ticks.
+      sandToSoilTicks: 18,
+      // Water threshold for counting a wet sand tick.
+      sandToSoilWaterMin: 30,
+      // Minimum nutrient floor applied when sand converts back to soil.
+      sandToSoilNutrientFloor: 15,
+    },
   },
 
   climate: {

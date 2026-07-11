@@ -4,7 +4,8 @@
 flowchart TD
     A[Start Tick] --> B[Advance Tick and Toggle Day/Night]
     B --> C[Process Weather and Per-Cell Resources]
-    C --> D[Update Global Gases O2/CO2]
+    C --> C1[Apply Soil/Sand Transition Checks]
+    C1 --> D[Update Global Gases O2/CO2]
     D --> E[Process Plants]
     E --> F[Process Insects]
     F --> G[Cleanup Dead Lists]

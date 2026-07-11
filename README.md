@@ -79,6 +79,11 @@ pnpm web:check
   - **Water**: 100 water, evaporates **-0.1/tick** (if lid is open).
   - **Sand**: No resources, **slows movement by 50%**.
   - **Empty**: Default.
+- **Terrain Transitions (Hysteresis)**:
+  - **Soil → Sand**: after **12** consecutive ticks with water ≤ **1**.
+  - **Conversion cost**: retains only **30%** of current nutrients.
+  - **Sand → Soil**: after **18** consecutive ticks with water ≥ **30**.
+  - **Recovery floor**: converted soil is clamped to at least **15** nutrients.
 - **Patches**: Connected cells of the same type (irregular shapes).
 - **Adjacency**:
   - Plants spread to 4-directional neighbors.
@@ -212,6 +217,8 @@ pnpm web:check
   - **Insect Drinking**: -0.5 from nearby (8-neighbor) water cell.
 - **Nutrients**:
   - **Soil Regeneration**: +0.1/tick/cell.
+  - **Soil → Sand conversion**: nutrients are multiplied by `world.terrainTransition.soilToSandNutrientRetention` (default `0.3`).
+  - **Sand → Soil conversion**: nutrients are floored by `world.terrainTransition.sandToSoilNutrientFloor` (default `15`).
   - **Cap**: Nutrients are clamped per-cell to `world.nutrientsMax` (default `200`).
   - **Depletion**: If <10 in a cell, plants wilt.
   - **Decay**:
@@ -224,7 +231,7 @@ pnpm web:check
 
 1. **Day/Night Cycle**: Day and night each span configurable tick windows (`climate.dayTicks` / `climate.nightTicks`).
 2. **Weather**: Roll for rain/drought.
-3. **Resource Regeneration**: Soil +0.1 nutrients/cell, and water updates from weather + evaporation + seepage.
+3. **Resource Regeneration**: Soil +0.1 nutrients/cell, water updates from weather + evaporation + seepage, then soil/sand terrain-transition checks.
 4. **Entity Actions**:
    - **Plants**: Grow, reproduce, or wilt/die.
    - **Insects**: Move, eat, reproduce, fight, or die.
@@ -260,6 +267,7 @@ Use this section as the source of truth if any diagram and prose disagree.
 | Decay rewards                  | Plant: +50 nutrients; insect: +20 nutrients                                                                   |
 | Gas bounds                     | O₂/CO₂ are clamped to 0-100 each tick                                                                         |
 | Water-loss condition           | Trigger only after 3 ticks with no cell above water > 1                                                       |
+| Terrain transition hysteresis  | Soil→Sand after 12 ticks with water ≤ 1 (retain 30% nutrients); Sand→Soil after 18 ticks with water ≥ 30 (floor 15 nutrients) |
 
 **🔗 Diagram**: [Terrarium: Main Game Loop](sandbox/terrarium-main-game-loop.md)
 
@@ -271,7 +279,7 @@ Use this section as a fast guide to what is implemented now vs. what is design i
 
 | System                           | Status      | Notes                                                                                                |
 | -------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
-| Grid + terrain patches           | Implemented | 2D world, terrain generation, per-cell resources in `src/world.ts`                                   |
+| Grid + terrain patches           | Implemented | 2D world, terrain generation, per-cell resources, and soil/sand hysteresis transitions               |
 | Plants lifecycle                 | Implemented | Growth, reproduction, wilt/death, decay feedback                                                     |
 | Herbivore lifecycle              | Implemented | Stage aging, movement, feeding, fleeing, breeding gates                                              |
 | Carnivore lifecycle + AP combat  | Implemented | Hunt/chase logic, AP spend/regen, opportunistic rival fights                                         |
@@ -285,7 +293,7 @@ Use this section as a fast guide to what is implemented now vs. what is design i
 | ----: | ---------------------- | --------------------------------------------------------- |
 |     1 | Day/Night phase update | Applies light and metabolism multipliers                  |
 |     2 | Weather roll           | Triggers rain/drought events                              |
-|     3 | Resource update        | Applies evaporation, seepage, soil regen, gas flux        |
+|     3 | Resource update        | Applies evaporation, seepage, soil regen, terrain-transition checks, gas flux |
 |     4 | Entity actions         | Plants act first, then insects (move/eat/fight/reproduce) |
 |     5 | Decay pass             | Dead entities convert into nutrients                      |
 |     6 | Outcome checks         | Evaluates loss streaks and win condition                  |
@@ -507,7 +515,7 @@ The simulator uses baseline defaults from `src/config.ts` and then applies CLI o
   3. CLI flags passed to `pnpm simulate ...`
 
 - Common tuning groups:
-  - **World**: `world.size`, `world.ticks`, `world.seed`, `world.lidOpen`
+  - **World**: `world.size`, `world.ticks`, `world.seed`, `world.lidOpen`, `world.terrainTransition.*`
     - Nutrient cap: `world.nutrientsMax`
   - **Climate**: `climate.dayTicks`, `climate.nightTicks`, weather values, gas balancing, night metabolism multiplier
   - **Biome**: seepage and terrain-adjacent moisture settings

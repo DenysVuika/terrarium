@@ -20,6 +20,11 @@ flowchart TD
     Soil[Soil nutrients] -->|+0.1 regen/tick| Soil
     Plants -->|drain by stage 0.2/0.5/1.0| Soil
 
+    TerrainShift[Terrain hysteresis] -->|Soil water <= 1 for 12 ticks| SoilToSand[Convert soil -> sand]
+    SoilToSand -->|retain 30% nutrients| SandState[Sand state]
+    TerrainShift -->|Sand water >= 30 for 18 ticks| SandToSoil[Convert sand -> soil]
+    SandToSoil -->|nutrient floor 15| Soil
+
     DeadPlant[Dead plant] -->|+50 nutrients| Soil
     DeadInsect[Dead herbivore/carnivore] -->|+20 nutrients| Soil
 
