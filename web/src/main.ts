@@ -1191,10 +1191,46 @@ function createHud(scene: TerrariumScene): void {
     <dl id="stats" class="hud-stats" aria-live="polite"></dl>
     <p id="events" class="hud-events"></p>
     <ul class="hud-legend" aria-label="Entity legend">
-      <li><span class="dot plant"></span>Plants (sprite stages)</li>
-      <li><span class="dot herbivore"></span>Herbivores: default, forager, larva</li>
-      <li><span class="dot carnivore"></span>Carnivores: default, aggressive, passive, larva</li>
-      <li><span class="dot egg"></span>Eggs</li>
+      <li class="legend-card">
+        <strong>Plant states</strong>
+        <div class="legend-sprites">
+          <span class="legend-sprite"><img src="/assets/sprites/plant-sprout.svg" alt="Plant sprout" /><em>sprout</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/plant-mid.svg" alt="Plant mid stage" /><em>mid</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/plant-mature.svg" alt="Plant mature stage" /><em>mature</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/plant-wilted.svg" alt="Plant wilted state" /><em>wilted</em></span>
+        </div>
+      </li>
+      <li class="legend-card">
+        <strong>Herbivore states</strong>
+        <div class="legend-sprites">
+          <span class="legend-sprite"><img src="/assets/sprites/egg-herbivore.svg" alt="Herbivore egg" /><em>egg</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/herbivore-larva.svg" alt="Herbivore larva" /><em>larva</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/herbivore-default.svg" alt="Herbivore default adult" /><em>adult-default</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/herbivore-forager.svg" alt="Herbivore forager adult" /><em>adult-forager</em></span>
+        </div>
+      </li>
+      <li class="legend-card">
+        <strong>Carnivore states</strong>
+        <div class="legend-sprites">
+          <span class="legend-sprite"><img src="/assets/sprites/egg-carnivore.svg" alt="Carnivore egg" /><em>egg</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/carnivore-larva.svg" alt="Carnivore larva" /><em>larva</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/carnivore-default.svg" alt="Carnivore default adult" /><em>adult-default</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/carnivore-aggressive.svg" alt="Carnivore aggressive adult" /><em>adult-aggressive</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/carnivore-passive.svg" alt="Carnivore passive adult" /><em>adult-passive</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/carnivore-default.svg" alt="Carnivore default attacking state" /><em>attacking-default</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/carnivore-aggressive.svg" alt="Carnivore aggressive attacking state" /><em>attacking-aggressive</em></span>
+          <span class="legend-sprite"><img src="/assets/sprites/carnivore-passive.svg" alt="Carnivore passive attacking state" /><em>attacking-passive</em></span>
+        </div>
+        <small>Attacking currently reuses carnivore adult sprites (no dedicated attack sprite asset yet).</small>
+      </li>
+      <li class="legend-card">
+        <strong>Remains state</strong>
+        <div class="legend-sprites">
+          <span class="legend-sprite"><span class="legend-remains-icon legend-remains-icon-herbivore" aria-hidden="true"></span><em>herbivore remains</em></span>
+          <span class="legend-sprite"><span class="legend-remains-icon legend-remains-icon-carnivore" aria-hidden="true"></span><em>carnivore remains</em></span>
+        </div>
+        <small>Fading ground decals after herbivore/carnivore death.</small>
+      </li>
     </ul>
   `;
 
