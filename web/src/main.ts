@@ -156,7 +156,7 @@ class TerrariumScene {
     this.dragLastX = 0;
     this.dragLastY = 0;
     this.ticksPerSecond = 1;
-    this.running = true;
+    this.running = false;
     this.elapsed = 0;
     this.visualTime = 0;
     this.onHover = () => undefined;
@@ -340,7 +340,11 @@ class TerrariumScene {
     }
 
     if (this.hoverCell !== null) {
-      this.emitHoverDetails(this.hoverCell, this.hoverClientX, this.hoverClientY);
+      this.emitHoverDetails(
+        this.hoverCell,
+        this.hoverClientX,
+        this.hoverClientY,
+      );
     }
   }
 
@@ -479,7 +483,11 @@ class TerrariumScene {
     this.worldContainer.scale.set(this.zoom);
 
     if (this.inspectorPinned && this.hoverCell !== null) {
-      this.emitHoverDetails(this.hoverCell, this.hoverClientX, this.hoverClientY);
+      this.emitHoverDetails(
+        this.hoverCell,
+        this.hoverClientX,
+        this.hoverClientY,
+      );
     }
   }
 
@@ -879,7 +887,11 @@ class TerrariumScene {
 
     this.drawDynamicLayers();
     if (this.hoverCell !== null) {
-      this.emitHoverDetails(this.hoverCell, this.hoverClientX, this.hoverClientY);
+      this.emitHoverDetails(
+        this.hoverCell,
+        this.hoverClientX,
+        this.hoverClientY,
+      );
     }
     this.pushStatus();
   }
@@ -916,7 +928,7 @@ class TerrariumScene {
     this.simulator = this.createSimulator();
     this.size = this.simulator.world.size;
     this.elapsed = 0;
-    this.running = true;
+    this.running = false;
     this.visualTime = 0;
     this.hoverCell = null;
     this.setInspectorPinned(false);
@@ -945,7 +957,9 @@ class TerrariumScene {
     const phaseRemaining = `${remainingHours}h ${String(remainingMinutesPart).padStart(2, '0')}m`;
     const outcome = this.simulator.outcome
       ? `${this.simulator.outcome.type.toUpperCase()}: ${this.simulator.outcome.reason}`
-      : 'Running';
+      : this.running
+        ? 'Running'
+        : 'Paused';
 
     this.onStatus({
       tick: snapshot.tick,
@@ -1007,7 +1021,7 @@ function createHud(scene: TerrariumScene): void {
   hud.innerHTML = `
     <h1>Terrarium Simulator</h1>
     <div class="hud-controls" role="group" aria-label="Playback controls">
-      <button id="play-pause" type="button">Pause</button>
+      <button id="play-pause" type="button">Play</button>
       <button id="step" type="button">Step</button>
       <button id="reset" type="button">Reset</button>
       <button id="reset-view" type="button">Reset View</button>
@@ -1071,7 +1085,7 @@ function createHud(scene: TerrariumScene): void {
 
   resetButton.addEventListener('click', () => {
     scene.reset();
-    playPauseButton.textContent = 'Pause';
+    playPauseButton.textContent = 'Play';
   });
 
   resetViewButton.addEventListener('click', () => {

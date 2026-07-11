@@ -23,6 +23,7 @@ type SimulationCliConfig = SimulationConfig & {
   sweep: boolean;
   sweepSeeds: string[];
   sweepCsvPath: string | null;
+  sweepMatrixConfigPaths: string[];
   stream: boolean;
   replayPath: string | null;
   recordJsonPath: string | null;
@@ -109,6 +110,7 @@ function parseArgs(argv: string[]): SimulationCliConfig {
     sweep: false,
     sweepSeeds: ['alpha', 'beta', 'gamma', 'delta', 'epsilon'],
     sweepCsvPath: null,
+    sweepMatrixConfigPaths: [],
     stream: false,
     replayPath: null,
     recordJsonPath: null,
@@ -169,6 +171,12 @@ function parseArgs(argv: string[]): SimulationCliConfig {
         .filter((seed) => seed.length > 0);
     } else if (token === '--sweep-csv') {
       args.sweepCsvPath = String(argv[++index]);
+    } else if (token === '--sweep-matrix-configs') {
+      const raw = String(argv[++index] ?? '');
+      args.sweepMatrixConfigPaths = raw
+        .split(',')
+        .map((configPath) => configPath.trim())
+        .filter((configPath) => configPath.length > 0);
     } else if (token === '--stream') {
       args.stream = true;
     } else if (token === '--record-json') {
@@ -1169,24 +1177,25 @@ function printRun(result: SimulationResult): void {
   );
 }
 
-function runSweep(config: SimulationCliConfig): void {
-  const seeds = config.sweepSeeds;
+type SweepRow = {
+  seed: string;
+  outcome: string;
+  reason: string;
+  tick: number;
+  plants: number;
+  herbivores: number;
+  carnivores: number;
+  insects: number;
+  o2: number;
+  co2: number;
+};
+
+function executeSweepRows(config: SimulationConfig, seeds: string[]): SweepRow[] {
   if (seeds.length === 0) {
     throw new Error('Sweep requires at least one seed. Use --sweep-seeds a,b,c');
   }
 
-  const rows: Array<{
-    seed: string;
-    outcome: string;
-    reason: string;
-    tick: number;
-    plants: number;
-    herbivores: number;
-    carnivores: number;
-    insects: number;
-    o2: number;
-    co2: number;
-  }> = [];
+  const rows: SweepRow[] = [];
 
   for (let index = 0; index < seeds.length; index += 1) {
     const sweepConfig = structuredClone(config);
@@ -1206,24 +1215,91 @@ function runSweep(config: SimulationCliConfig): void {
     });
   }
 
+  return rows;
+}
+
+function printSweepRows(rows: SweepRow[]): void {
   console.log('Sweep results');
   console.log('-------------');
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index];
     console.log(
       `${row.seed.padEnd(8)} outcome=${row.outcome.padEnd(4)} tick=${String(row.tick).padEnd(3)} ` +
-          `plants=${String(row.plants).padEnd(5)} herbivores=${String(row.herbivores).padEnd(5)} ` +
-          `carnivores=${String(row.carnivores).padEnd(5)} insects=${String(row.insects).padEnd(5)} ` +
+        `plants=${String(row.plants).padEnd(5)} herbivores=${String(row.herbivores).padEnd(5)} ` +
+        `carnivores=${String(row.carnivores).padEnd(5)} insects=${String(row.insects).padEnd(5)} ` +
         `o2=${String(row.o2).padEnd(6)} co2=${String(row.co2).padEnd(6)} reason=${row.reason}`,
     );
+  }
+}
+
+function writeSweepCsv(rows: SweepRow[], filePath: string, scenarioLabel?: string): void {
+  ensureParentDir(filePath);
+  const header = scenarioLabel
+    ? 'scenario,seed,outcome,reason,finalTick,plants,herbivores,carnivores,insects,o2,co2'
+    : 'seed,outcome,reason,finalTick,plants,herbivores,carnivores,insects,o2,co2';
+  const lines = [
+    header,
+    ...rows.map((row) =>
+      [
+        ...(scenarioLabel ? [scenarioLabel] : []),
+        row.seed,
+        row.outcome,
+        row.reason,
+        row.tick,
+        row.plants,
+        row.herbivores,
+        row.carnivores,
+        row.insects,
+        row.o2,
+        row.co2,
+      ].join(','),
+    ),
+  ];
+  fs.writeFileSync(filePath, `${lines.join('\n')}\n`, 'utf8');
+}
+
+function runSweep(config: SimulationCliConfig): void {
+  const rows = executeSweepRows(config, config.sweepSeeds);
+
+  printSweepRows(rows);
+
+  if (config.sweepCsvPath) {
+    writeSweepCsv(rows, config.sweepCsvPath);
+    console.log(`Sweep CSV written: ${config.sweepCsvPath}`);
+  }
+}
+
+function runSweepMatrix(config: SimulationCliConfig): void {
+  const matrixPaths = config.sweepMatrixConfigPaths;
+  if (matrixPaths.length === 0) {
+    throw new Error('Sweep matrix requires config files. Use --sweep-matrix-configs a.yaml,b.yaml');
+  }
+
+  const allRows: Array<SweepRow & { scenario: string }> = [];
+
+  for (let index = 0; index < matrixPaths.length; index += 1) {
+    const matrixPath = matrixPaths[index];
+    const matrixLabel = path.basename(matrixPath).replace(/\.(ya?ml|json)$/i, '');
+
+    const scenarioConfig = structuredClone(config);
+    applyConfigOverrides(scenarioConfig, loadConfigOverrides(matrixPath));
+
+    const rows = executeSweepRows(scenarioConfig, config.sweepSeeds);
+    console.log(`Scenario: ${matrixLabel} (${matrixPath})`);
+    printSweepRows(rows);
+
+    for (const row of rows) {
+      allRows.push({ scenario: matrixLabel, ...row });
+    }
   }
 
   if (config.sweepCsvPath) {
     ensureParentDir(config.sweepCsvPath);
     const lines = [
-      'seed,outcome,reason,finalTick,plants,herbivores,carnivores,insects,o2,co2',
-      ...rows.map((row) =>
+      'scenario,seed,outcome,reason,finalTick,plants,herbivores,carnivores,insects,o2,co2',
+      ...allRows.map((row) =>
         [
+          row.scenario,
           row.seed,
           row.outcome,
           row.reason,
@@ -1238,7 +1314,7 @@ function runSweep(config: SimulationCliConfig): void {
       ),
     ];
     fs.writeFileSync(config.sweepCsvPath, `${lines.join('\n')}\n`, 'utf8');
-    console.log(`Sweep CSV written: ${config.sweepCsvPath}`);
+    console.log(`Sweep matrix CSV written: ${config.sweepCsvPath}`);
   }
 }
 
@@ -1269,7 +1345,11 @@ async function main(): Promise<void> {
   }
 
   if (config.sweep) {
-    runSweep(config);
+    if (config.sweepMatrixConfigPaths.length > 0) {
+      runSweepMatrix(config);
+    } else {
+      runSweep(config);
+    }
     return;
   }
 

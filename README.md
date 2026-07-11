@@ -17,7 +17,7 @@
 ![Terrarium](assets/terrarium.png)
 ![Web UI](assets/webui-01.png)
 
-## 🌐 Web UI (PixiJS)
+## 🌐 Web UI
 
 The repository includes a browser-based renderer in `web/` built with PixiJS and Vite.
 It reuses the simulation domain logic from `src/` and adds:
@@ -26,6 +26,7 @@ It reuses the simulation domain logic from `src/` and adds:
 - Playback controls (play/pause, step, reset, speed).
 - Camera controls (drag to pan, wheel to zoom, reset view).
 - In-world clock and phase progress percentage.
+- Startup behavior: simulation loads in a paused state; users explicitly start it via **Play**.
 
 ### Run Web UI (Development)
 
@@ -329,6 +330,12 @@ pnpm simulate:sweep
 pnpm simulate:sweep:long
 ```
 
+- Matrix sweep across scenario configs (450 ticks):
+
+```bash
+pnpm simulate:sweep:matrix
+```
+
 - Custom run:
 
 ```bash
@@ -463,6 +470,7 @@ pnpm simulate --replay latest --native-size
 - `--sweep`: run fixed 5-seed stability sweep
 - `--sweep-seeds <a,b,c>`: override sweep seeds (default: `alpha,beta,gamma,delta,epsilon`)
 - `--sweep-csv <path>`: write sweep rows to CSV
+- `--sweep-matrix-configs <a.yaml,b.yaml,...>`: run scenario matrix sweep and emit merged rows (requires `--sweep`)
 - `--stream`: render each tick live during simulation (no `--replay` file needed)
 - `--record-csv <path>`: write per-tick aggregate metrics CSV
 - `--record-json <path>`: write replay JSON at path (compressed by default)
@@ -699,6 +707,8 @@ pnpm simulate --sweep --ticks 450 --sweep-seeds alpha,beta,gamma,delta,epsilon -
 
 This keeps benchmarking lightweight, reproducible, and aligned with the current codebase.
 
+Detailed command recipes are available in [Terrarium: Benchmark Recipes](sandbox/terrarium-benchmark-recipes.md).
+
 ### **🔗 Quick Links to Diagrams**
 
 | System              | Canvas Link                                                                               |
@@ -709,6 +719,7 @@ This keeps benchmarking lightweight, reproducible, and aligned with the current 
 | Carnivore Lifecycle | [terrarium-carnivore-insects-lifecycle](sandbox/terrarium-carnivore-insects-lifecycle.md) |
 | Resource Cycle      | [terrarium-resource-cycle](sandbox/terrarium-resource-cycle.md)                           |
 | Main Game Loop      | [terrarium-main-game-loop](sandbox/terrarium-main-game-loop.md)                           |
+| Benchmark Recipes   | [terrarium-benchmark-recipes](sandbox/terrarium-benchmark-recipes.md)                     |
 
 ### **💡 Notes for Contributors**
 
