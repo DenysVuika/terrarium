@@ -33,6 +33,10 @@ class TestInsect extends Insect {
     return 3;
   }
 
+  protected get agePerTick(): number {
+    return 1;
+  }
+
   protected get starvationLimit(): number {
     return 2;
   }
@@ -47,6 +51,10 @@ class TestInsect extends Insect {
 
   protected get moveEnergyCost(): number {
     return 0.25;
+  }
+
+  protected get maxEnergy(): number {
+    return 20;
   }
 
   protected tickBehavior(): void {
@@ -75,6 +83,10 @@ class DefaultBiasInsect extends Insect {
     return 10;
   }
 
+  protected get agePerTick(): number {
+    return 1;
+  }
+
   protected get starvationLimit(): number {
     return 10;
   }
@@ -89,6 +101,10 @@ class DefaultBiasInsect extends Insect {
 
   protected get moveEnergyCost(): number {
     return 0;
+  }
+
+  protected get maxEnergy(): number {
+    return 20;
   }
 
   protected tickBehavior(): void {}
@@ -233,6 +249,7 @@ describe('Insect base behavior', () => {
   it('fleeFrom increases distance from predator when options exist', () => {
     const { ctx, world } = createContext();
     const insect = new TestInsect('test', 'i6', world.index(1, 1), 10);
+    insect.stepCharge = 2;
     ctx.occupied.add(insect.cell);
 
     const predator = world.index(0, 0);
@@ -240,11 +257,12 @@ describe('Insect base behavior', () => {
       Math.abs(world.coords(insect.cell).x - world.coords(predator).x) +
       Math.abs(world.coords(insect.cell).y - world.coords(predator).y);
 
-    insect.fleeFrom(predator, ctx);
+    const escaped = insect.fleeFrom(predator, ctx);
 
     const after =
       Math.abs(world.coords(insect.cell).x - world.coords(predator).x) +
       Math.abs(world.coords(insect.cell).y - world.coords(predator).y);
+    expect(escaped).toBe(true);
     expect(after).toBeGreaterThanOrEqual(before);
   });
 
@@ -291,14 +309,29 @@ describe('Insect base behavior', () => {
     const { ctx, world } = createContext();
     const origin = world.index(1, 1);
     const insect = new TestInsect('test', 'i10', origin, 10);
+    insect.stepCharge = 2;
     ctx.occupied.add(origin);
 
     for (const cell of world.neighbors8(origin)) {
       ctx.occupied.add(cell);
     }
 
-    insect.fleeFrom(world.index(0, 0), ctx);
+    const escaped = insect.fleeFrom(world.index(0, 0), ctx);
 
+    expect(escaped).toBe(false);
+    expect(insect.cell).toBe(origin);
+  });
+
+  it('fleeFrom fails when movement budget is insufficient', () => {
+    const { ctx, world } = createContext();
+    const origin = world.index(1, 1);
+    const insect = new TestInsect('test', 'i13', origin, 10);
+    insect.stepCharge = 0;
+    ctx.occupied.add(origin);
+
+    const escaped = insect.fleeFrom(world.index(0, 0), ctx);
+
+    expect(escaped).toBe(false);
     expect(insect.cell).toBe(origin);
   });
 

@@ -22,6 +22,7 @@ function createRng(chanceResults: boolean[] = []): Rng {
 describe('BaseCarnivoreBehavior', () => {
   it('kills adjacent herbivore and updates kill stats', () => {
     const config = getDefaultConfig();
+    config.insects.carnivores.satiatedEnergyThreshold = 999;
     config.insects.carnivores.preyFleeChance = 0;
     config.insects.carnivores.attackDamage = 10;
 
@@ -88,6 +89,7 @@ describe('BaseCarnivoreBehavior', () => {
 
   it('handles flee and chase path when prey escapes', () => {
     const config = getDefaultConfig();
+    config.insects.carnivores.satiatedEnergyThreshold = 999;
     config.insects.carnivores.preyFleeChance = 1;
     config.insects.carnivores.rivalFightChance = 1;
 
@@ -119,8 +121,9 @@ describe('BaseCarnivoreBehavior', () => {
       cell: world.index(1, 0),
       alive: true,
       energy: 10,
-      fleeFrom: () => {
+      tryFleeFrom: () => {
         fleeCalls += 1;
+        return true;
       },
     };
 
@@ -170,6 +173,7 @@ describe('BaseCarnivoreBehavior', () => {
 
   it('resolves rival fight kill when no herbivore attack is used', () => {
     const config = getDefaultConfig();
+    config.insects.carnivores.satiatedEnergyThreshold = 999;
     config.insects.carnivores.preyFleeChance = 0;
     config.insects.carnivores.rivalFightChance = 1;
     config.insects.carnivores.restChanceNoPrey = 0;
@@ -237,6 +241,7 @@ describe('BaseCarnivoreBehavior', () => {
 
   it('uses rest behavior when no prey is found', () => {
     const config = getDefaultConfig();
+    config.insects.carnivores.satiatedEnergyThreshold = 999;
     config.insects.carnivores.restChanceNoPrey = 1;
     config.insects.carnivores.breed.chance = 0;
 
@@ -292,6 +297,7 @@ describe('BaseCarnivoreBehavior', () => {
 
   it('breeds when gates pass under prey-rich population', () => {
     const config = getDefaultConfig();
+    config.insects.carnivores.satiatedEnergyThreshold = 999;
     config.insects.carnivores.breed.chance = 1;
 
     const world = new World(3, createRng());

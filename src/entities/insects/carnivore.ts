@@ -53,6 +53,9 @@ export class Carnivore extends Insect {
   protected get maxAge(): number {
     return this._config.insects.carnivores.maxAge;
   }
+  protected get agePerTick(): number {
+    return this._config.insects.carnivores.agePerTick;
+  }
   protected get starvationLimit(): number {
     return this._config.insects.carnivores.starvationTicks;
   }
@@ -64,6 +67,9 @@ export class Carnivore extends Insect {
   }
   protected get moveEnergyCost(): number {
     return this._config.insects.carnivores.moveEnergyCost;
+  }
+  protected get maxEnergy(): number {
+    return this._config.insects.carnivores.energyMax;
   }
 
   protected tickExtraLifecycle(ctx: SimContext): void {

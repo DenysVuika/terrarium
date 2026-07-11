@@ -25,8 +25,8 @@ flowchart TD
     U --> V[Soil step cost: 1.0]
     U --> W[Sand step cost: 1.5]
 
-    X[Move Energy Cost] --> Y[Herbivore: -1 per move]
-    X --> Z[Carnivore: -0.7 per move]
+    X[Move Energy Cost] --> Y[Herbivore: -0.8 per move]
+    X --> Z[Carnivore: -0.5 per move]
 ```
 
 Note: If this diagram conflicts with prose mechanics, use README Section 7 (Canonical Conflict-Resolution Rules) as the source of truth.

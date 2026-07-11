@@ -8,7 +8,11 @@ export class BaseCarnivoreBehavior implements InsectBehaviorStrategy<Carnivore> 
   private readonly restChanceScale: number;
   private readonly rivalFightChanceScale: number;
 
-  constructor(options?: { huntRadiusDelta?: number; restChanceScale?: number; rivalFightChanceScale?: number }) {
+  constructor(options?: {
+    huntRadiusDelta?: number;
+    restChanceScale?: number;
+    rivalFightChanceScale?: number;
+  }) {
     this.huntRadiusDelta = options?.huntRadiusDelta ?? 0;
     this.restChanceScale = options?.restChanceScale ?? 1;
     this.rivalFightChanceScale = options?.rivalFightChanceScale ?? 1;
@@ -18,33 +22,59 @@ export class BaseCarnivoreBehavior implements InsectBehaviorStrategy<Carnivore> 
     const { world, config, rng } = ctx;
     const carnivoreConfig = config.insects.carnivores;
     const breedConfig = carnivoreConfig.breed;
-    const huntRadius = Math.max(1, carnivoreConfig.huntRadius + this.huntRadiusDelta);
-    const restChance = Math.max(0, Math.min(1, carnivoreConfig.restChanceNoPrey * this.restChanceScale));
-    const rivalFightChance = Math.max(0, Math.min(1, carnivoreConfig.rivalFightChance * this.rivalFightChanceScale));
+    const huntRadius = Math.max(
+      1,
+      carnivoreConfig.huntRadius + this.huntRadiusDelta,
+    );
+    const restChance = Math.max(
+      0,
+      Math.min(1, carnivoreConfig.restChanceNoPrey * this.restChanceScale),
+    );
+    const rivalFightChance = Math.max(
+      0,
+      Math.min(
+        1,
+        carnivoreConfig.rivalFightChance * this.rivalFightChanceScale,
+      ),
+    );
+    const satiated = entity.energy >= carnivoreConfig.satiatedEnergyThreshold;
 
     let attackUsed = false;
     let chaseUsed = false;
 
-    const adjacentHerbivores = ctx.herbivores.filter((h) => h.alive && world.neighbors8(entity.cell).includes(h.cell));
+    const adjacentHerbivores = ctx.herbivores.filter(
+      (h) => h.alive && world.neighbors8(entity.cell).includes(h.cell),
+    );
 
-    if (adjacentHerbivores.length > 0 && entity.ap >= 3 && !attackUsed) {
+    if (
+      !satiated &&
+      adjacentHerbivores.length > 0 &&
+      entity.ap >= 3 &&
+      !attackUsed
+    ) {
       attackUsed = true;
       entity.ap -= 3;
       const prey = rng.pick(adjacentHerbivores);
 
+      let escaped = false;
       if (prey && rng.chance(carnivoreConfig.preyFleeChance)) {
-        prey.energy -= 1;
-        prey.fleeFrom(entity.cell, ctx);
-        if (!chaseUsed) {
+        escaped = prey.tryFleeFrom(entity.cell, ctx);
+        if (escaped && !chaseUsed) {
           chaseUsed = true;
           entity.moveToward(prey.cell, ctx);
         }
-      } else if (prey) {
+      }
+
+      if (prey && !escaped) {
         prey.energy -= carnivoreConfig.attackDamage;
         if (prey.energy <= 0) {
           prey.alive = false;
           ctx.occupied.delete(prey.cell);
-          world.nutrients[prey.cell] = clamp(world.nutrients[prey.cell] + 20, 0, 300);
+          world.nutrients[prey.cell] = clamp(
+            world.nutrients[prey.cell] + 20,
+            0,
+            config.world.nutrientsMax,
+          );
           entity.energy += carnivoreConfig.killEnergyGain;
           entity.ap = clamp(entity.ap + 5, 0, 10);
           ctx.stats.herbivoreDeaths += 1;
@@ -53,8 +83,14 @@ export class BaseCarnivoreBehavior implements InsectBehaviorStrategy<Carnivore> 
       }
     }
 
-    if (!attackUsed) {
-      const targetHerbivore = this.findNearestHerbivore(entity, huntRadius, ctx);
+    if (satiated && !attackUsed) {
+      entity.moveRandom(ctx);
+    } else if (!attackUsed) {
+      const targetHerbivore = this.findNearestHerbivore(
+        entity,
+        huntRadius,
+        ctx,
+      );
       if (targetHerbivore) {
         entity.moveToward(targetHerbivore.cell, ctx);
       } else if (rng.chance(restChance)) {
@@ -65,10 +101,14 @@ export class BaseCarnivoreBehavior implements InsectBehaviorStrategy<Carnivore> 
     }
 
     const adjacentCarnivores = ctx.carnivores.filter(
-      (other) => other.alive && other.id !== entity.id && world.neighbors8(entity.cell).includes(other.cell)
+      (other) =>
+        other.alive &&
+        other.id !== entity.id &&
+        world.neighbors8(entity.cell).includes(other.cell),
     );
 
     if (
+      !satiated &&
       !attackUsed &&
       adjacentCarnivores.length > 0 &&
       entity.ap >= 3 &&
@@ -86,7 +126,11 @@ export class BaseCarnivoreBehavior implements InsectBehaviorStrategy<Carnivore> 
           rival.alive = false;
           rival.ap = 0;
           ctx.occupied.delete(rival.cell);
-          world.nutrients[rival.cell] = clamp(world.nutrients[rival.cell] + 20, 0, 300);
+          world.nutrients[rival.cell] = clamp(
+            world.nutrients[rival.cell] + 20,
+            0,
+            config.world.nutrientsMax,
+          );
           entity.energy += 5;
           entity.ap = clamp(entity.ap + 5, 0, 10);
           ctx.stats.carnivoreDeaths += 1;
@@ -98,11 +142,17 @@ export class BaseCarnivoreBehavior implements InsectBehaviorStrategy<Carnivore> 
     const localCarnivores = world
       .neighbors8(entity.cell)
       .filter((cell) =>
-        ctx.carnivores.some((other) => other.alive && other.cell === cell && other.id !== entity.id)
+        ctx.carnivores.some(
+          (other) =>
+            other.alive && other.cell === cell && other.id !== entity.id,
+        ),
       ).length;
     const liveCarnivores = ctx.carnivores.filter((c) => c.alive).length;
     const liveHerbivores = ctx.herbivores.filter((h) => h.alive).length;
-    const carnivoreGlobalCap = Math.max(1, Math.floor(liveHerbivores * breedConfig.populationCapPerHerbivore));
+    const carnivoreGlobalCap = Math.max(
+      1,
+      Math.floor(liveHerbivores * breedConfig.populationCapPerHerbivore),
+    );
 
     if (
       entity.energy >= breedConfig.energyMin &&
@@ -124,7 +174,11 @@ export class BaseCarnivoreBehavior implements InsectBehaviorStrategy<Carnivore> 
     }
   }
 
-  private findNearestHerbivore(entity: Carnivore, radius: number, ctx: SimContext): Herbivore | null {
+  private findNearestHerbivore(
+    entity: Carnivore,
+    radius: number,
+    ctx: SimContext,
+  ): Herbivore | null {
     const origin = ctx.world.coords(entity.cell);
     let nearest: Herbivore | null = null;
     let bestDist = Number.POSITIVE_INFINITY;

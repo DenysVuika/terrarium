@@ -517,6 +517,7 @@ export class Simulator {
 
   processWeatherAndCellResources(): void {
     const { biome, climate, world } = this.config;
+    const maxNutrients = world.nutrientsMax;
     let rainEvents = 0;
     let droughtEvents = 0;
 
@@ -553,7 +554,7 @@ export class Simulator {
       }
 
       this.world.water[index] = clamp(this.world.water[index], 0, 100);
-      this.world.nutrients[index] = clamp(this.world.nutrients[index], 0, 300);
+      this.world.nutrients[index] = clamp(this.world.nutrients[index], 0, maxNutrients);
     }
 
     if (rainEvents > 0)

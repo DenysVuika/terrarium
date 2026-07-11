@@ -9,6 +9,8 @@ export const DEFAULT_CONFIG = {
     size: 250,
     // Maximum number of simulation ticks before forced win.
     ticks: 100,
+    // Maximum nutrients allowed in any cell.
+    nutrientsMax: 200,
     // Seed for deterministic RNG and reproducible runs.
     seed: 'prototype-1',
     // Whether the terrarium lid starts open.
@@ -77,9 +79,23 @@ export const DEFAULT_CONFIG = {
       metabolismPerTick: 0.1,
       // Herbivore energy cost per successful movement step.
       moveEnergyCost: 0.8,
+      // Maximum herbivore energy (hunger saturation cap).
+      energyMax: 20,
+      // Above this energy, herbivores prefer roaming over feeding.
+      satiatedEnergyThreshold: 12,
+      // Maximum flee points stored by a herbivore.
+      fleePointsMax: 2,
+      // Flee points regenerated per tick.
+      fleePointsRegenPerTick: 0.35,
+      // Flee points consumed per successful flee attempt.
+      fleePointsCost: 1,
+      // Additional energy spent on successful flee (on top of move cost).
+      fleeEnergyCost: 0.5,
+      // Biological age gained per simulation tick.
+      agePerTick: 0.25,
       // Consecutive ticks at non-positive energy before herbivore starvation death.
       starvationTicks: 5,
-      // Maximum herbivore age in ticks.
+      // Maximum herbivore biological age units.
       maxAge: 320,
       breed: {
         // Minimum herbivore energy required to attempt reproduction.
@@ -110,6 +126,10 @@ export const DEFAULT_CONFIG = {
       metabolismPerTick: 0.04,
       // Carnivore energy cost per successful movement step.
       moveEnergyCost: 0.5,
+      // Maximum carnivore energy (hunger saturation cap).
+      energyMax: 24,
+      // Above this energy, carnivores prefer roaming over hunting.
+      satiatedEnergyThreshold: 14,
       // Search radius for carnivores when locating prey.
       huntRadius: 4,
       // Chance carnivores fight rivals when eligible.
@@ -128,9 +148,11 @@ export const DEFAULT_CONFIG = {
       killEnergyGain: 7,
       // AP recovered by carnivore per tick.
       apRegenPerTick: 1,
+      // Biological age gained per simulation tick.
+      agePerTick: 0.25,
       // Consecutive ticks at non-positive energy before carnivore starvation death.
       starvationTicks: 8,
-      // Maximum carnivore age in ticks.
+      // Maximum carnivore biological age units.
       maxAge: 180,
       breed: {
         // Minimum carnivore energy required to attempt reproduction.

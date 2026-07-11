@@ -17,15 +17,17 @@
 ![Terrarium](assets/terrarium.png)
 ![Web UI](assets/webui-01.png)
 
-## 🌐 Web UI (PixiJS)
+## 🌐 Web UI
 
 The repository includes a browser-based renderer in `web/` built with PixiJS and Vite.
 It reuses the simulation domain logic from `src/` and adds:
 
 - Live world rendering with terrain, plants, herbivores, carnivores, and eggs.
+- Temporary ground remains decals when insects die (fade after a few ticks).
 - Playback controls (play/pause, step, reset, speed).
 - Camera controls (drag to pan, wheel to zoom, reset view).
 - In-world clock and phase progress percentage.
+- Startup behavior: simulation loads in a paused state; users explicitly start it via **Play**.
 
 ### Run Web UI (Development)
 
@@ -109,7 +111,9 @@ pnpm web:check
 ### **3. Herbivores**
 
 - **Aging**: Egg (4 ticks) → Larva (2 ticks) → Adult.
+- **Age Rate**: +0.25 age/tick.
 - **Energy**:
+  - **Cap**: Energy is clamped to `insects.herbivores.energyMax` (default `20`).
   - **Passive Loss**: -0.1/tick (scaled by `nightMetabolismMultiplier = 0.7` at night).
   - **No nearby drinkable water**: -0.5 energy/tick.
   - **Starvation**: Die if energy ≤ 0 for 5 ticks.
@@ -119,11 +123,14 @@ pnpm web:check
   - **Sand**: cost 1.5 step-charge, -0.8 energy.
   - Roaming uses anti-backtrack bias to reduce oscillation.
 - **Eating**:
+  - **Satiation Rule**: At or above `satiatedEnergyThreshold` (default `12`), herbivores roam instead of targeting/eating plants.
   - **Targeting**: Scan within radius 2 and move toward nearest plant.
   - **Consume Plant**: +5 energy (80% success if adjacent).
 - **Fleeing**:
-  - **20% chance to escape** carnivore attacks.
-  - **Cost**: -1 energy, move 1 cell away (8-directional).
+  - **20% chance to attempt escape** on carnivore attack.
+  - **Flee points**: Max 2, regen +0.35/tick, spend 1 per successful flee.
+  - **Cost**: Uses normal movement step-charge + move energy, plus extra -0.5 flee energy.
+  - If no flee points or movement budget are available, the flee attempt fails and the attack resolves.
 - **Reproduction**:
   - **Conditions**: Energy ≥ 14, cooldown 18, 12% chance, adjacent empty walkable cell.
   - **Crowding gates**:
@@ -131,14 +138,16 @@ pnpm web:check
     - Global gate: reproduction blocked when live herbivores reach `plants * 0.0095`.
   - **Cost**: -6 energy.
 - **Longevity**:
-  - **Max age**: 320 ticks.
+  - **Max age**: 320 age units (~1280 ticks at +0.25 age/tick).
 
 **🔗 Diagram**: [Terrarium: Herbivore Insects Lifecycle](sandbox/terrarium-herbivore-insects-lifecycle.md)
 
 ### **4. Carnivores**
 
 - **Aging**: Egg (2 ticks) → Larva (1 tick) → Adult.
+- **Age Rate**: +0.25 age/tick.
 - **Energy**:
+  - **Cap**: Energy is clamped to `insects.carnivores.energyMax` (default `24`).
   - **Passive Loss**: -0.04/tick (scaled by `nightMetabolismMultiplier = 0.7` at night).
   - **No nearby drinkable water**: -0.2 energy/tick.
   - **Starvation**: Die if energy ≤ 0 for 8 ticks.
@@ -151,10 +160,11 @@ pnpm web:check
   - **Soil**: cost 1.0 step-charge, -0.5 energy.
   - **Sand**: cost 1.5 step-charge, -0.5 energy, and -1 AP (terrain strain).
 - **Combat**:
+  - **Satiation Rule**: At or above `satiatedEnergyThreshold` (default `14`), carnivores roam instead of actively attacking/hunting and skip rival fights.
   - **Attack Cost**: 3 AP.
   - **Per-Turn Action Cap**: 1 attack action per tick, plus at most 1 chase.
   - **Herbivore Hunt**:
-    - 20% chance herbivore escapes (flees 1 cell); otherwise attack resolves.
+    - 20% chance herbivore attempts to flee; escape only succeeds when flee points and move budget are available.
     - If caught: -2 energy to herbivore. If herbivore dies: +7 energy, +5 AP.
     - Hunt targeting radius: 4 cells.
   - **Carnivore vs. Carnivore**:
@@ -172,7 +182,7 @@ pnpm web:check
     - Global gate: reproduction blocked when live carnivores reach `herbivores * 0.3`.
   - **Cost**: -7 energy, AP = 0.
 - **Longevity**:
-  - **Max age**: 180 ticks.
+  - **Max age**: 180 age units (~720 ticks at +0.25 age/tick).
 
 **🔗 Diagram**: [Terrarium: Carnivore Insects Lifecycle](sandbox/terrarium-carnivore-insects-lifecycle.md)
 
@@ -201,6 +211,7 @@ pnpm web:check
   - **Insect Drinking**: -0.5 from nearby (8-neighbor) water cell.
 - **Nutrients**:
   - **Soil Regeneration**: +0.1/tick/cell.
+  - **Cap**: Nutrients are clamped per-cell to `world.nutrientsMax` (default `200`).
   - **Depletion**: If <10 in a cell, plants wilt.
   - **Decay**:
     - Dead plants add +50 nutrients to their cell.
@@ -235,7 +246,7 @@ Use this section as the source of truth if any diagram and prose disagree.
 | Adjacency model                | Plants spread in 4-neighborhood; insect interactions use 8-neighborhood                                       |
 | Movement model                 | Step-charge based; sand step-cost is 1.5 for both insect types                                                |
 | Carnivore on sand              | -0.5 energy move cost and -1 AP                                                                               |
-| Herbivore flee roll            | 20% escape success; 80% attack resolves                                                                       |
+| Herbivore flee roll            | 20% flee attempt; success requires flee points (max 2, regen 0.35/tick, cost 1) and available move budget     |
 | Carnivore turn economy         | Max 1 attack action and 1 chase per tick                                                                      |
 | Insect lifecycle               | Herbivore egg/larva: 4/2 ticks; carnivore egg/larva: 2/1 ticks                                                |
 | Herbivore breeding gate        | Energy >= 14, cooldown 18, chance 12%, cost 6                                                                 |
@@ -243,7 +254,7 @@ Use this section as the source of truth if any diagram and prose disagree.
 | Reproduction crowding controls | Herbivore local cap 3 and global cap plants \* 0.0095; carnivore local cap 2 and global cap herbivores \* 0.3 |
 | Night metabolism               | Insect passive metabolism is multiplied by 0.7 at night                                                       |
 | Starvation windows             | Herbivore: 5 ticks at non-positive energy; carnivore: 8 ticks                                                 |
-| Lifespan contrast              | Herbivores live much longer (max 320) than carnivores (max 180)                                               |
+| Lifespan contrast              | Herbivores live much longer (max 320 age units) than carnivores (max 180 age units)                           |
 | Plant growth light threshold   | Growth allowed at light >= 50                                                                                 |
 | Decay rewards                  | Plant: +50 nutrients; insect: +20 nutrients                                                                   |
 | Gas bounds                     | O₂/CO₂ are clamped to 0-100 each tick                                                                         |
@@ -317,6 +328,18 @@ The single-run summary now includes a **Diagnostics** block with births, deaths,
 
 ```bash
 pnpm simulate:sweep
+```
+
+- Long-run sweep with CSV output (450 ticks):
+
+```bash
+pnpm simulate:sweep:long
+```
+
+- Matrix sweep across scenario configs (450 ticks):
+
+```bash
+pnpm simulate:sweep:matrix
 ```
 
 - Custom run:
@@ -451,6 +474,9 @@ pnpm simulate --replay latest --native-size
 - `--day-ticks <number>`: number of ticks per day phase (default `1`)
 - `--night-ticks <number>`: number of ticks per night phase (default `1`)
 - `--sweep`: run fixed 5-seed stability sweep
+- `--sweep-seeds <a,b,c>`: override sweep seeds (default: `alpha,beta,gamma,delta,epsilon`)
+- `--sweep-csv <path>`: write sweep rows to CSV
+- `--sweep-matrix-configs <a.yaml,b.yaml,...>`: run scenario matrix sweep and emit merged rows (requires `--sweep`)
 - `--stream`: render each tick live during simulation (no `--replay` file needed)
 - `--record-csv <path>`: write per-tick aggregate metrics CSV
 - `--record-json <path>`: write replay JSON at path (compressed by default)
@@ -479,6 +505,7 @@ The simulator uses baseline defaults from `src/config.ts` and then applies CLI o
 
 - Common tuning groups:
   - **World**: `world.size`, `world.ticks`, `world.seed`, `world.lidOpen`
+    - Nutrient cap: `world.nutrientsMax`
   - **Climate**: `climate.dayTicks`, `climate.nightTicks`, weather values, gas balancing, night metabolism multiplier
   - **Biome**: seepage and terrain-adjacent moisture settings
   - **Plants**: `plants.initialCount`, reproduction chance, and stress/dormancy shrink values
@@ -662,31 +689,32 @@ Replay symbol legend:
   - Default output is gzip-compressed (`.json.gz`) to reduce file size.
   - Use `--record-json-plain` if you explicitly need uncompressed JSON.
 
-## **📊 Prototype Baseline Report (2026-07-08)**
+## **📊 Benchmark Workflow (Current)**
 
-### **Single Baseline Run**
+The previous static baseline table was removed because tuning changes make fixed historical numbers drift quickly.
+Use reproducible sweeps instead, then compare generated CSV artifacts between branches.
 
-- Command: `pnpm simulate --ticks 100 --seed baseline-5`
-- Outcome: **WIN** (`survived 100 ticks`)
-- Final state: plants `1542`, herbivores `4`, carnivores `2`, O2 `55.48`, CO2 `47.28`
+### **Quick 5-Seed Sweep (Default)**
 
-### **5-Seed Sweep**
+```bash
+pnpm simulate:sweep
+```
 
-| Seed    | Outcome | Final Tick | Plants | Insects |    O2 |   CO2 |
-| ------- | ------- | ---------: | -----: | ------: | ----: | ----: |
-| alpha   | win     |        100 |   1480 |       6 | 55.24 | 47.40 |
-| beta    | win     |        100 |   1446 |       8 | 55.10 | 47.47 |
-| gamma   | win     |        100 |   1462 |       3 | 55.21 | 47.41 |
-| delta   | win     |        100 |   1529 |       6 | 55.43 | 47.31 |
-| epsilon | win     |        100 |   1474 |       5 | 55.27 | 47.38 |
+### **Custom Seed Sweep + CSV Export**
 
-### **Current Balance Gaps (Expected for Prototype)**
+```bash
+pnpm simulate --sweep --ticks 450 --sweep-seeds alpha,beta,gamma,delta,epsilon --sweep-csv runs/bench/sweep-450.csv
+```
 
-1. **Biodiversity is fragile**: insects survive to tick 100, but total insect count trends low.
-2. **Gas center bias**: O2/CO2 currently stabilize around mid-range due damping, not pure ecosystem equilibrium.
-3. **Predator pressure sensitivity**: small changes to carnivore count/AP regen still shift outcomes noticeably.
+### **Age-Rate Comparison Pattern**
 
-These are the primary targets for the next tuning pass.
+1. Create per-scenario config files (for example `age-0.25.yaml`, `age-0.1.yaml`).
+2. Run matching sweep commands with `--sweep-csv` per scenario.
+3. Compare final populations and outcome stability by seed.
+
+This keeps benchmarking lightweight, reproducible, and aligned with the current codebase.
+
+Detailed command recipes are available in [Terrarium: Benchmark Recipes](sandbox/terrarium-benchmark-recipes.md).
 
 ### **🔗 Quick Links to Diagrams**
 
@@ -698,6 +726,7 @@ These are the primary targets for the next tuning pass.
 | Carnivore Lifecycle | [terrarium-carnivore-insects-lifecycle](sandbox/terrarium-carnivore-insects-lifecycle.md) |
 | Resource Cycle      | [terrarium-resource-cycle](sandbox/terrarium-resource-cycle.md)                           |
 | Main Game Loop      | [terrarium-main-game-loop](sandbox/terrarium-main-game-loop.md)                           |
+| Benchmark Recipes   | [terrarium-benchmark-recipes](sandbox/terrarium-benchmark-recipes.md)                     |
 
 ### **💡 Notes for Contributors**
 

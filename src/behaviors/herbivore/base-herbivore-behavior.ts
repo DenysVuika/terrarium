@@ -15,12 +15,18 @@ export class BaseHerbivoreBehavior implements InsectBehaviorStrategy<Herbivore> 
   tick(entity: Herbivore, ctx: SimContext): void {
     const { world, config, rng } = ctx;
     const breedConfig = config.insects.herbivores.breed;
+    const herbivoreConfig = config.insects.herbivores;
+    const satiated = entity.energy >= herbivoreConfig.satiatedEnergyThreshold;
 
-    const targetPlant = entity.findNearestPlant(this.plantSearchRadius, ctx);
-    if (targetPlant >= 0) {
-      entity.moveToward(targetPlant, ctx);
-    } else {
+    if (satiated) {
       entity.moveRandom(ctx);
+    } else {
+      const targetPlant = entity.findNearestPlant(this.plantSearchRadius, ctx);
+      if (targetPlant >= 0) {
+        entity.moveToward(targetPlant, ctx);
+      } else {
+        entity.moveRandom(ctx);
+      }
     }
 
     const consumablePlants = [entity.cell]
@@ -28,11 +34,15 @@ export class BaseHerbivoreBehavior implements InsectBehaviorStrategy<Herbivore> 
       .filter((cell, index, cells) => cells.indexOf(cell) === index)
       .filter((cell) => ctx.plants.has(cell));
 
-    if (consumablePlants.length > 0 && rng.chance(this.consumePlantChance)) {
+    if (!satiated && consumablePlants.length > 0 && rng.chance(this.consumePlantChance)) {
       const plantCell = rng.pick(consumablePlants);
       if (plantCell !== null) {
         ctx.plants.delete(plantCell);
-        world.nutrients[plantCell] = clamp(world.nutrients[plantCell] + 50, 0, 300);
+        world.nutrients[plantCell] = clamp(
+          world.nutrients[plantCell] + 50,
+          0,
+          config.world.nutrientsMax,
+        );
         entity.energy += 5;
       }
     }

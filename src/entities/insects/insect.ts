@@ -50,10 +50,12 @@ export abstract class Insect extends Entity {
   protected abstract get eggStageTicks(): number;
   protected abstract get larvaStageTicks(): number;
   protected abstract get maxAge(): number;
+  protected abstract get agePerTick(): number;
   protected abstract get starvationLimit(): number;
   protected abstract get metabolismPerTick(): number;
   protected abstract get dehydrationPenalty(): number;
   protected abstract get moveEnergyCost(): number;
+  protected abstract get maxEnergy(): number;
 
   protected tickExtraLifecycle(_ctx: SimContext): void {}
 
@@ -70,6 +72,7 @@ export abstract class Insect extends Entity {
     if (this.alive && this.stage === 'adult') {
       this.tickBehavior(ctx);
     }
+    this.energy = clamp(this.energy, 0, this.maxEnergy);
   }
 
   protected abstract tickBehavior(ctx: SimContext): void;
@@ -78,7 +81,7 @@ export abstract class Insect extends Entity {
     const { world, config } = ctx;
     const insectConfig = config.insects;
 
-    this.age += 1;
+    this.age += this.agePerTick;
     this.stageTicks += 1;
 
     const metabolismMultiplier = ctx.day ? 1 : config.climate.nightMetabolismMultiplier;
@@ -126,7 +129,11 @@ export abstract class Insect extends Entity {
     if (this.starvationTicks >= this.starvationLimit || this.age >= this.maxAge) {
       this.alive = false;
       ctx.occupied.delete(this.cell);
-      world.nutrients[this.cell] = clamp(world.nutrients[this.cell] + 20, 0, 300);
+      world.nutrients[this.cell] = clamp(
+        world.nutrients[this.cell] + 20,
+        0,
+        config.world.nutrientsMax,
+      );
       this.onDeath(ctx);
     }
   }
@@ -202,13 +209,13 @@ export abstract class Insect extends Entity {
     return true;
   }
 
-  fleeFrom(predatorCell: number, ctx: SimContext): void {
+  fleeFrom(predatorCell: number, ctx: SimContext): boolean {
     const { world } = ctx;
     const predator = world.coords(predatorCell);
 
     const options = world.neighbors8(this.cell).filter((cell) => world.isWalkable(cell) && !ctx.occupied.has(cell));
 
-    if (!options.length) return;
+    if (!options.length) return false;
 
     options.sort((left, right) => {
       const leftPos = world.coords(left);
@@ -222,11 +229,8 @@ export abstract class Insect extends Entity {
       return rightDist - leftDist;
     });
 
-    const previousCell = this.cell;
-    ctx.occupied.delete(this.cell);
-    this.cell = options[0];
-    this.lastCell = previousCell;
-    ctx.occupied.add(this.cell);
+    // Fleeing uses the same movement constraints as normal movement.
+    return this.tryMove(options[0], ctx);
   }
 
   findNearestPlant(radius: number, ctx: SimContext): number {
