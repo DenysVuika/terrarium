@@ -46,7 +46,11 @@ export class BaseCarnivoreBehavior implements InsectBehaviorStrategy<Carnivore> 
         if (prey.energy <= 0) {
           prey.alive = false;
           ctx.occupied.delete(prey.cell);
-          world.nutrients[prey.cell] = clamp(world.nutrients[prey.cell] + 20, 0, 300);
+          world.nutrients[prey.cell] = clamp(
+            world.nutrients[prey.cell] + 20,
+            0,
+            config.world.nutrientsMax,
+          );
           entity.energy += carnivoreConfig.killEnergyGain;
           entity.ap = clamp(entity.ap + 5, 0, 10);
           ctx.stats.herbivoreDeaths += 1;
@@ -88,7 +92,11 @@ export class BaseCarnivoreBehavior implements InsectBehaviorStrategy<Carnivore> 
           rival.alive = false;
           rival.ap = 0;
           ctx.occupied.delete(rival.cell);
-          world.nutrients[rival.cell] = clamp(world.nutrients[rival.cell] + 20, 0, 300);
+          world.nutrients[rival.cell] = clamp(
+            world.nutrients[rival.cell] + 20,
+            0,
+            config.world.nutrientsMax,
+          );
           entity.energy += 5;
           entity.ap = clamp(entity.ap + 5, 0, 10);
           ctx.stats.carnivoreDeaths += 1;

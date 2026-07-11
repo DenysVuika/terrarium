@@ -33,12 +33,13 @@ export class Plant extends Entity {
   tick(ctx: SimContext): Plant | null {
     const { world, config, rng } = ctx;
     const plantConfig = config.plants;
+    const maxNutrients = config.world.nutrientsMax;
 
     const drain = nutrientDrainByGrowth(this.growth);
     world.nutrients[this.cell] = clamp(
       world.nutrients[this.cell] - drain,
       0,
-      300,
+      maxNutrients,
     );
 
     const hasResources =
@@ -64,7 +65,7 @@ export class Plant extends Entity {
         world.nutrients[this.cell] = clamp(
           world.nutrients[this.cell] + 50,
           0,
-          300,
+          maxNutrients,
         );
         return null;
       }
@@ -91,7 +92,7 @@ export class Plant extends Entity {
           world.nutrients[this.cell] = clamp(
             world.nutrients[this.cell] - 10,
             0,
-            300,
+            maxNutrients,
           );
           return new Plant(ctx.nextId('p'), target, 0);
         }

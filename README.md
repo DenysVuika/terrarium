@@ -207,6 +207,7 @@ pnpm web:check
   - **Insect Drinking**: -0.5 from nearby (8-neighbor) water cell.
 - **Nutrients**:
   - **Soil Regeneration**: +0.1/tick/cell.
+  - **Cap**: Nutrients are clamped per-cell to `world.nutrientsMax` (default `200`).
   - **Depletion**: If <10 in a cell, plants wilt.
   - **Decay**:
     - Dead plants add +50 nutrients to their cell.
@@ -500,6 +501,7 @@ The simulator uses baseline defaults from `src/config.ts` and then applies CLI o
 
 - Common tuning groups:
   - **World**: `world.size`, `world.ticks`, `world.seed`, `world.lidOpen`
+    - Nutrient cap: `world.nutrientsMax`
   - **Climate**: `climate.dayTicks`, `climate.nightTicks`, weather values, gas balancing, night metabolism multiplier
   - **Biome**: seepage and terrain-adjacent moisture settings
   - **Plants**: `plants.initialCount`, reproduction chance, and stress/dormancy shrink values

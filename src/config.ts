@@ -9,6 +9,8 @@ export const DEFAULT_CONFIG = {
     size: 250,
     // Maximum number of simulation ticks before forced win.
     ticks: 100,
+    // Maximum nutrients allowed in any cell.
+    nutrientsMax: 200,
     // Seed for deterministic RNG and reproducible runs.
     seed: 'prototype-1',
     // Whether the terrarium lid starts open.

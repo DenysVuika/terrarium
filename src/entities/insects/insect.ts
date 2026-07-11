@@ -127,7 +127,11 @@ export abstract class Insect extends Entity {
     if (this.starvationTicks >= this.starvationLimit || this.age >= this.maxAge) {
       this.alive = false;
       ctx.occupied.delete(this.cell);
-      world.nutrients[this.cell] = clamp(world.nutrients[this.cell] + 20, 0, 300);
+      world.nutrients[this.cell] = clamp(
+        world.nutrients[this.cell] + 20,
+        0,
+        config.world.nutrientsMax,
+      );
       this.onDeath(ctx);
     }
   }

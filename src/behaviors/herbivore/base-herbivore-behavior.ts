@@ -32,7 +32,11 @@ export class BaseHerbivoreBehavior implements InsectBehaviorStrategy<Herbivore> 
       const plantCell = rng.pick(consumablePlants);
       if (plantCell !== null) {
         ctx.plants.delete(plantCell);
-        world.nutrients[plantCell] = clamp(world.nutrients[plantCell] + 50, 0, 300);
+        world.nutrients[plantCell] = clamp(
+          world.nutrients[plantCell] + 50,
+          0,
+          config.world.nutrientsMax,
+        );
         entity.energy += 5;
       }
     }
