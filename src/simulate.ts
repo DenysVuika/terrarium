@@ -21,6 +21,8 @@ import {
 
 type SimulationCliConfig = SimulationConfig & {
   sweep: boolean;
+  sweepSeeds: string[];
+  sweepCsvPath: string | null;
   stream: boolean;
   replayPath: string | null;
   recordJsonPath: string | null;
@@ -105,6 +107,8 @@ function parseArgs(argv: string[]): SimulationCliConfig {
   const args: SimulationCliConfig = {
     ...getDefaultConfig(),
     sweep: false,
+    sweepSeeds: ['alpha', 'beta', 'gamma', 'delta', 'epsilon'],
+    sweepCsvPath: null,
     stream: false,
     replayPath: null,
     recordJsonPath: null,
@@ -157,6 +161,14 @@ function parseArgs(argv: string[]): SimulationCliConfig {
       args.climate.nightTicks = Number(argv[++index]);
     } else if (token === '--sweep') {
       args.sweep = true;
+    } else if (token === '--sweep-seeds') {
+      const raw = String(argv[++index] ?? '');
+      args.sweepSeeds = raw
+        .split(',')
+        .map((seed) => seed.trim())
+        .filter((seed) => seed.length > 0);
+    } else if (token === '--sweep-csv') {
+      args.sweepCsvPath = String(argv[++index]);
     } else if (token === '--stream') {
       args.stream = true;
     } else if (token === '--record-json') {
@@ -1157,29 +1169,37 @@ function printRun(result: SimulationResult): void {
   );
 }
 
-function runSweep(baseConfig: SimulationConfig): void {
-  const seeds = ['alpha', 'beta', 'gamma', 'delta', 'epsilon'];
+function runSweep(config: SimulationCliConfig): void {
+  const seeds = config.sweepSeeds;
+  if (seeds.length === 0) {
+    throw new Error('Sweep requires at least one seed. Use --sweep-seeds a,b,c');
+  }
+
   const rows: Array<{
     seed: string;
     outcome: string;
     reason: string;
     tick: number;
     plants: number;
+    herbivores: number;
+    carnivores: number;
     insects: number;
     o2: number;
     co2: number;
   }> = [];
 
   for (let index = 0; index < seeds.length; index += 1) {
-    const config = structuredClone(baseConfig);
-    config.world.seed = seeds[index];
-    const result = runSimulation(config);
+    const sweepConfig = structuredClone(config);
+    sweepConfig.world.seed = seeds[index];
+    const result = runSimulation(sweepConfig);
     rows.push({
       seed: seeds[index],
       outcome: result.outcome.type,
       reason: result.outcome.reason,
       tick: result.finalTick,
       plants: result.finalState.plants,
+      herbivores: result.finalState.herbivores,
+      carnivores: result.finalState.carnivores,
       insects: result.finalState.insects,
       o2: result.finalState.o2,
       co2: result.finalState.co2,
@@ -1192,9 +1212,33 @@ function runSweep(baseConfig: SimulationConfig): void {
     const row = rows[index];
     console.log(
       `${row.seed.padEnd(8)} outcome=${row.outcome.padEnd(4)} tick=${String(row.tick).padEnd(3)} ` +
-        `plants=${String(row.plants).padEnd(5)} insects=${String(row.insects).padEnd(5)} ` +
+          `plants=${String(row.plants).padEnd(5)} herbivores=${String(row.herbivores).padEnd(5)} ` +
+          `carnivores=${String(row.carnivores).padEnd(5)} insects=${String(row.insects).padEnd(5)} ` +
         `o2=${String(row.o2).padEnd(6)} co2=${String(row.co2).padEnd(6)} reason=${row.reason}`,
     );
+  }
+
+  if (config.sweepCsvPath) {
+    ensureParentDir(config.sweepCsvPath);
+    const lines = [
+      'seed,outcome,reason,finalTick,plants,herbivores,carnivores,insects,o2,co2',
+      ...rows.map((row) =>
+        [
+          row.seed,
+          row.outcome,
+          row.reason,
+          row.tick,
+          row.plants,
+          row.herbivores,
+          row.carnivores,
+          row.insects,
+          row.o2,
+          row.co2,
+        ].join(','),
+      ),
+    ];
+    fs.writeFileSync(config.sweepCsvPath, `${lines.join('\n')}\n`, 'utf8');
+    console.log(`Sweep CSV written: ${config.sweepCsvPath}`);
   }
 }
 

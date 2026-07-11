@@ -5,7 +5,7 @@ flowchart TD
     H1[Egg] -->|4 ticks| H2[Larva]
     H2 -->|2 ticks| H3[Adult]
 
-    H3 --> H4[Passive energy -0.1 with night multiplier 0.7 and step-charge +1.2]
+    H3 --> H4[Age +0.25, passive energy -0.1 with night multiplier 0.7, step-charge +1.2]
     H4 --> H4A[Flee points regen +0.35 capped at 2]
     H4A --> H5{Nearby drinkable water in 8-neighborhood}
     H5 -->|Yes| H6[Drink and remove 0.5 water from nearby cell]

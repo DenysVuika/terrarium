@@ -109,6 +109,7 @@ pnpm web:check
 ### **3. Herbivores**
 
 - **Aging**: Egg (4 ticks) → Larva (2 ticks) → Adult.
+- **Age Rate**: +0.25 age/tick.
 - **Energy**:
   - **Passive Loss**: -0.1/tick (scaled by `nightMetabolismMultiplier = 0.7` at night).
   - **No nearby drinkable water**: -0.5 energy/tick.
@@ -133,13 +134,14 @@ pnpm web:check
     - Global gate: reproduction blocked when live herbivores reach `plants * 0.0095`.
   - **Cost**: -6 energy.
 - **Longevity**:
-  - **Max age**: 320 ticks.
+  - **Max age**: 320 age units (~1280 ticks at +0.25 age/tick).
 
 **🔗 Diagram**: [Terrarium: Herbivore Insects Lifecycle](sandbox/terrarium-herbivore-insects-lifecycle.md)
 
 ### **4. Carnivores**
 
 - **Aging**: Egg (2 ticks) → Larva (1 tick) → Adult.
+- **Age Rate**: +0.25 age/tick.
 - **Energy**:
   - **Passive Loss**: -0.04/tick (scaled by `nightMetabolismMultiplier = 0.7` at night).
   - **No nearby drinkable water**: -0.2 energy/tick.
@@ -174,7 +176,7 @@ pnpm web:check
     - Global gate: reproduction blocked when live carnivores reach `herbivores * 0.3`.
   - **Cost**: -7 energy, AP = 0.
 - **Longevity**:
-  - **Max age**: 180 ticks.
+  - **Max age**: 180 age units (~720 ticks at +0.25 age/tick).
 
 **🔗 Diagram**: [Terrarium: Carnivore Insects Lifecycle](sandbox/terrarium-carnivore-insects-lifecycle.md)
 
@@ -245,7 +247,7 @@ Use this section as the source of truth if any diagram and prose disagree.
 | Reproduction crowding controls | Herbivore local cap 3 and global cap plants \* 0.0095; carnivore local cap 2 and global cap herbivores \* 0.3 |
 | Night metabolism               | Insect passive metabolism is multiplied by 0.7 at night                                                       |
 | Starvation windows             | Herbivore: 5 ticks at non-positive energy; carnivore: 8 ticks                                                 |
-| Lifespan contrast              | Herbivores live much longer (max 320) than carnivores (max 180)                                               |
+| Lifespan contrast              | Herbivores live much longer (max 320 age units) than carnivores (max 180 age units)                           |
 | Plant growth light threshold   | Growth allowed at light >= 50                                                                                 |
 | Decay rewards                  | Plant: +50 nutrients; insect: +20 nutrients                                                                   |
 | Gas bounds                     | O₂/CO₂ are clamped to 0-100 each tick                                                                         |
@@ -319,6 +321,12 @@ The single-run summary now includes a **Diagnostics** block with births, deaths,
 
 ```bash
 pnpm simulate:sweep
+```
+
+- Long-run sweep with CSV output (450 ticks):
+
+```bash
+pnpm simulate:sweep:long
 ```
 
 - Custom run:
@@ -453,6 +461,8 @@ pnpm simulate --replay latest --native-size
 - `--day-ticks <number>`: number of ticks per day phase (default `1`)
 - `--night-ticks <number>`: number of ticks per night phase (default `1`)
 - `--sweep`: run fixed 5-seed stability sweep
+- `--sweep-seeds <a,b,c>`: override sweep seeds (default: `alpha,beta,gamma,delta,epsilon`)
+- `--sweep-csv <path>`: write sweep rows to CSV
 - `--stream`: render each tick live during simulation (no `--replay` file needed)
 - `--record-csv <path>`: write per-tick aggregate metrics CSV
 - `--record-json <path>`: write replay JSON at path (compressed by default)
@@ -664,31 +674,30 @@ Replay symbol legend:
   - Default output is gzip-compressed (`.json.gz`) to reduce file size.
   - Use `--record-json-plain` if you explicitly need uncompressed JSON.
 
-## **📊 Prototype Baseline Report (2026-07-08)**
+## **📊 Benchmark Workflow (Current)**
 
-### **Single Baseline Run**
+The previous static baseline table was removed because tuning changes make fixed historical numbers drift quickly.
+Use reproducible sweeps instead, then compare generated CSV artifacts between branches.
 
-- Command: `pnpm simulate --ticks 100 --seed baseline-5`
-- Outcome: **WIN** (`survived 100 ticks`)
-- Final state: plants `1542`, herbivores `4`, carnivores `2`, O2 `55.48`, CO2 `47.28`
+### **Quick 5-Seed Sweep (Default)**
 
-### **5-Seed Sweep**
+```bash
+pnpm simulate:sweep
+```
 
-| Seed    | Outcome | Final Tick | Plants | Insects |    O2 |   CO2 |
-| ------- | ------- | ---------: | -----: | ------: | ----: | ----: |
-| alpha   | win     |        100 |   1480 |       6 | 55.24 | 47.40 |
-| beta    | win     |        100 |   1446 |       8 | 55.10 | 47.47 |
-| gamma   | win     |        100 |   1462 |       3 | 55.21 | 47.41 |
-| delta   | win     |        100 |   1529 |       6 | 55.43 | 47.31 |
-| epsilon | win     |        100 |   1474 |       5 | 55.27 | 47.38 |
+### **Custom Seed Sweep + CSV Export**
 
-### **Current Balance Gaps (Expected for Prototype)**
+```bash
+pnpm simulate --sweep --ticks 450 --sweep-seeds alpha,beta,gamma,delta,epsilon --sweep-csv runs/bench/sweep-450.csv
+```
 
-1. **Biodiversity is fragile**: insects survive to tick 100, but total insect count trends low.
-2. **Gas center bias**: O2/CO2 currently stabilize around mid-range due damping, not pure ecosystem equilibrium.
-3. **Predator pressure sensitivity**: small changes to carnivore count/AP regen still shift outcomes noticeably.
+### **Age-Rate Comparison Pattern**
 
-These are the primary targets for the next tuning pass.
+1. Create per-scenario config files (for example `age-0.25.yaml`, `age-0.1.yaml`).
+2. Run matching sweep commands with `--sweep-csv` per scenario.
+3. Compare final populations and outcome stability by seed.
+
+This keeps benchmarking lightweight, reproducible, and aligned with the current codebase.
 
 ### **🔗 Quick Links to Diagrams**
 

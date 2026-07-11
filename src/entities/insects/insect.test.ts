@@ -33,6 +33,10 @@ class TestInsect extends Insect {
     return 3;
   }
 
+  protected get agePerTick(): number {
+    return 1;
+  }
+
   protected get starvationLimit(): number {
     return 2;
   }
@@ -73,6 +77,10 @@ class DefaultBiasInsect extends Insect {
 
   protected get maxAge(): number {
     return 10;
+  }
+
+  protected get agePerTick(): number {
+    return 1;
   }
 
   protected get starvationLimit(): number {

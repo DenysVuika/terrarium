@@ -85,9 +85,11 @@ export const DEFAULT_CONFIG = {
       fleePointsCost: 1,
       // Additional energy spent on successful flee (on top of move cost).
       fleeEnergyCost: 0.5,
+      // Biological age gained per simulation tick.
+      agePerTick: 0.25,
       // Consecutive ticks at non-positive energy before herbivore starvation death.
       starvationTicks: 5,
-      // Maximum herbivore age in ticks.
+      // Maximum herbivore biological age units.
       maxAge: 320,
       breed: {
         // Minimum herbivore energy required to attempt reproduction.
@@ -136,9 +138,11 @@ export const DEFAULT_CONFIG = {
       killEnergyGain: 7,
       // AP recovered by carnivore per tick.
       apRegenPerTick: 1,
+      // Biological age gained per simulation tick.
+      agePerTick: 0.25,
       // Consecutive ticks at non-positive energy before carnivore starvation death.
       starvationTicks: 8,
-      // Maximum carnivore age in ticks.
+      // Maximum carnivore biological age units.
       maxAge: 180,
       breed: {
         // Minimum carnivore energy required to attempt reproduction.

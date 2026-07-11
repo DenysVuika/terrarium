@@ -49,6 +49,9 @@ export class Herbivore extends Insect {
   protected get maxAge(): number {
     return this._config.insects.herbivores.maxAge;
   }
+  protected get agePerTick(): number {
+    return this._config.insects.herbivores.agePerTick;
+  }
   protected get starvationLimit(): number {
     return this._config.insects.herbivores.starvationTicks;
   }

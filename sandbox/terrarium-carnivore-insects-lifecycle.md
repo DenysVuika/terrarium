@@ -6,7 +6,7 @@ flowchart TD
     C1[Egg] -->|2 ticks| C2[Larva]
     C2 -->|1 tick| C3[Adult]
 
-    C3 --> C4[Passive energy -0.04 with night multiplier 0.7 and AP +1]
+    C3 --> C4[Age +0.25, passive energy -0.04 with night multiplier 0.7, AP +1]
     C4 --> C5{Nearby drinkable water in 8-neighborhood?}
     C5 -->|Yes| C6[Drink: remove 0.5 water]
     C5 -->|No| C7[Dehydration penalty: -0.2 energy]

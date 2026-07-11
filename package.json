@@ -17,6 +17,8 @@
     "stream": "node dist/simulate.mjs --stream",
     "presimulate:sweep": "pnpm build",
     "simulate:sweep": "node dist/simulate.mjs --sweep",
+    "presimulate:sweep:long": "pnpm build",
+    "simulate:sweep:long": "node dist/simulate.mjs --sweep --ticks 450 --sweep-csv runs/bench/sweep-450.csv",
     "prereplay": "pnpm build",
     "replay": "node dist/simulate.mjs --replay latest",
     "typecheck": "tsc --project tsconfig.json --noEmit",

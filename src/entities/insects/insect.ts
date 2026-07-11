@@ -50,6 +50,7 @@ export abstract class Insect extends Entity {
   protected abstract get eggStageTicks(): number;
   protected abstract get larvaStageTicks(): number;
   protected abstract get maxAge(): number;
+  protected abstract get agePerTick(): number;
   protected abstract get starvationLimit(): number;
   protected abstract get metabolismPerTick(): number;
   protected abstract get dehydrationPenalty(): number;
@@ -78,7 +79,7 @@ export abstract class Insect extends Entity {
     const { world, config } = ctx;
     const insectConfig = config.insects;
 
-    this.age += 1;
+    this.age += this.agePerTick;
     this.stageTicks += 1;
 
     const metabolismMultiplier = ctx.day ? 1 : config.climate.nightMetabolismMultiplier;
