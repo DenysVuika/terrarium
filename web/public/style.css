@@ -103,6 +103,19 @@ body {
   min-width: 56px;
 }
 
+.hud-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(139, 233, 210, 0.35);
+  background: rgba(15, 46, 52, 0.45);
+  color: var(--accent);
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
 .hud-stats {
   margin: 0;
   display: grid;

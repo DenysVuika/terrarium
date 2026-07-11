@@ -2,7 +2,7 @@
 
 ## **📌 Project Overview**
 
-**Goal**: Develop a **closed ecosystem simulation** (Terrarium) where **plants, herbivores, and carnivores** interact in a **configurable 2D grid world**. The simulation must balance **resources (O₂, CO₂, water, nutrients)**, **entity lifecycles**, and **combat mechanics** while allowing for **player interaction** (e.g., toggling a lid).
+**Goal**: Develop a **closed ecosystem simulation** (Terrarium) where **plants, herbivores, and carnivores** interact in a **configurable 2D grid world**. The simulation must balance **resources (O₂, CO₂, water, nutrients)**, **entity lifecycles**, and **combat mechanics** while allowing for **player interaction** (for example, toggling a lid).
 
 **Key Features**:
 
@@ -12,7 +12,7 @@
 - **Carnivores**: Move, eat herbivores/carnivores, reproduce, and **fight** (turn-based combat with AP).
 - **Behavior Profiles**: Each insect is assigned a random behavior profile at birth, making populations naturally diverse.
 - **Resource Cycles**: Global O₂/CO₂ pools, per-cell water/nutrients.
-- **Player Actions**: Toggle lid (light/evaporation), add water/soil.
+- **Player Actions (planned/partial)**: Lid state can be toggled in the Web UI and configured for simulation runs; richer interactive actions (for example add water/soil) are planned.
 
 ![Web UI](assets/webui-01.png)
 
@@ -27,6 +27,8 @@ It reuses the simulation domain logic from `src/` and adds:
 - Camera controls (drag to pan, wheel to zoom, reset view).
 - In-world clock and phase progress percentage.
 - Startup behavior: simulation loads in a paused state; users explicitly start it via **Play**.
+
+Note: the Web UI now exposes a lid open/close control in the HUD. CLI/config-based lid state remains available for simulator runs.
 
 ### Run Web UI (Development)
 
@@ -275,7 +277,7 @@ Use this section as a fast guide to what is implemented now vs. what is design i
 | Carnivore lifecycle + AP combat  | Implemented | Hunt/chase logic, AP spend/regen, opportunistic rival fights                                         |
 | Resource cycles                  | Implemented | O2/CO2 pools, water weather/seepage, nutrient regen/decay                                            |
 | Replay + diagnostics             | Implemented | Tick timeline, event history, CSV + JSON replay output                                               |
-| Player actions beyond lid config | Partial     | Lid state is configurable at run start; interactive add-water/add-soil tools are not yet in CLI loop |
+| Player actions / interaction tools | Partial     | Lid state is configurable via config/CLI and now toggleable in Web UI; interactive add-water/add-soil tools are not yet implemented |
 
 ### **Per-Tick Execution Order (Source of Truth)**
 
