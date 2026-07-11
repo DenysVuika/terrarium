@@ -23,6 +23,7 @@ The repository includes a browser-based renderer in `web/` built with PixiJS and
 It reuses the simulation domain logic from `src/` and adds:
 
 - Live world rendering with terrain, plants, herbivores, carnivores, and eggs.
+- Temporary ground remains decals when insects die (fade after a few ticks).
 - Playback controls (play/pause, step, reset, speed).
 - Camera controls (drag to pan, wheel to zoom, reset view).
 - In-world clock and phase progress percentage.

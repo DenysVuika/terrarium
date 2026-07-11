@@ -60,6 +60,16 @@ type MovingInsect = {
   lastCell: number;
 };
 
+type InsectKind = 'herbivore' | 'carnivore';
+
+type InsectRemains = {
+  herbivores: number;
+  carnivores: number;
+  ttl: number;
+};
+
+const INSECT_REMAINS_TTL = 18;
+
 const SPRITE_FILES: Record<SpriteKind, string> = {
   'plant-sprout': '/assets/sprites/plant-sprout.svg',
   'plant-mid': '/assets/sprites/plant-mid.svg',
@@ -104,6 +114,7 @@ class TerrariumScene {
   textures: SpriteTextures;
   worldContainer: Container;
   terrainLayer: Graphics;
+  remainsLayer: Graphics;
   waterOverlayLayer: Graphics;
   atmosphereLayer: Graphics;
   plantSpriteLayer: Container;
@@ -134,6 +145,8 @@ class TerrariumScene {
   hoverClientY: number;
   inspectorPinned: boolean;
   pointerTravel: number;
+  remainsByCell: Map<number, InsectRemains>;
+  previousLiveInsects: Map<string, { kind: InsectKind; cell: number }>;
 
   constructor(
     app: Application,
@@ -165,12 +178,15 @@ class TerrariumScene {
     this.hoverClientY = 0;
     this.inspectorPinned = false;
     this.pointerTravel = 0;
+    this.remainsByCell = new Map();
+    this.previousLiveInsects = this.captureLiveInsects();
 
     this.spritePools = createKindRecord(() => []);
     this.spriteUsage = createKindRecord(() => 0);
 
     this.worldContainer = new Container();
     this.terrainLayer = new Graphics();
+    this.remainsLayer = new Graphics();
     this.waterOverlayLayer = new Graphics();
     this.atmosphereLayer = new Graphics();
     this.plantSpriteLayer = new Container();
@@ -179,6 +195,7 @@ class TerrariumScene {
     this.eggSpriteLayer = new Container();
 
     this.worldContainer.addChild(this.terrainLayer);
+    this.worldContainer.addChild(this.remainsLayer);
     this.worldContainer.addChild(this.waterOverlayLayer);
     this.worldContainer.addChild(this.plantSpriteLayer);
     this.worldContainer.addChild(this.herbivoreSpriteLayer);
@@ -361,6 +378,57 @@ class TerrariumScene {
     return 'Empty';
   }
 
+  captureLiveInsects(): Map<string, { kind: InsectKind; cell: number }> {
+    const live = new Map<string, { kind: InsectKind; cell: number }>();
+
+    for (const herbivore of this.simulator.entities.herbivores) {
+      if (!herbivore.alive) continue;
+      live.set(herbivore.id, { kind: 'herbivore', cell: herbivore.cell });
+    }
+
+    for (const carnivore of this.simulator.entities.carnivores) {
+      if (!carnivore.alive) continue;
+      live.set(carnivore.id, { kind: 'carnivore', cell: carnivore.cell });
+    }
+
+    return live;
+  }
+
+  addInsectRemains(cell: number, kind: InsectKind): void {
+    const existing = this.remainsByCell.get(cell) ?? {
+      herbivores: 0,
+      carnivores: 0,
+      ttl: INSECT_REMAINS_TTL,
+    };
+
+    if (kind === 'herbivore') {
+      existing.herbivores += 1;
+    } else {
+      existing.carnivores += 1;
+    }
+
+    existing.ttl = INSECT_REMAINS_TTL;
+    this.remainsByCell.set(cell, existing);
+  }
+
+  updateInsectRemainsAfterStep(): void {
+    const currentLive = this.captureLiveInsects();
+
+    for (const [id, previous] of this.previousLiveInsects) {
+      if (currentLive.has(id)) continue;
+      this.addInsectRemains(previous.cell, previous.kind);
+    }
+
+    this.previousLiveInsects = currentLive;
+
+    for (const [cell, remains] of this.remainsByCell) {
+      remains.ttl -= 1;
+      if (remains.ttl <= 0) {
+        this.remainsByCell.delete(cell);
+      }
+    }
+  }
+
   handleHoverAtClient(clientX: number, clientY: number): void {
     if (this.inspectorPinned) {
       return;
@@ -431,6 +499,7 @@ class TerrariumScene {
     const carnivores = this.simulator.entities.carnivores.filter(
       (entity) => entity.alive && entity.cell === cell,
     );
+    const remains = this.remainsByCell.get(cell);
 
     const coords = world.coords(cell);
     const rows: string[] = [
@@ -453,6 +522,12 @@ class TerrariumScene {
     for (const carnivore of carnivores) {
       rows.push(
         `Carnivore (${carnivore.behaviorId}) | stage ${carnivore.stage} | age ${carnivore.age} | energy ${carnivore.energy.toFixed(1)} | AP ${carnivore.ap.toFixed(1)}`,
+      );
+    }
+
+    if (remains) {
+      rows.push(
+        `Remains: herbivore ${remains.herbivores}, carnivore ${remains.carnivores}, fades in ${remains.ttl} ticks`,
       );
     }
 
@@ -855,8 +930,45 @@ class TerrariumScene {
     });
   }
 
+  drawInsectRemains(): void {
+    this.remainsLayer.clear();
+    const centerOffset = this.baseCellSize * 0.5;
+
+    for (const [cell, remains] of this.remainsByCell) {
+      const x = (cell % this.size) * this.baseCellSize + centerOffset;
+      const y = Math.floor(cell / this.size) * this.baseCellSize + centerOffset;
+      const ttlRatio = Math.max(
+        0,
+        Math.min(1, remains.ttl / INSECT_REMAINS_TTL),
+      );
+      const alphaBase = 0.18 + ttlRatio * 0.42;
+
+      if (remains.herbivores > 0) {
+        const herbivoreScale = Math.min(1.6, 0.85 + remains.herbivores * 0.12);
+        this.remainsLayer.circle(
+          x - this.baseCellSize * 0.09,
+          y + this.baseCellSize * 0.08,
+          this.baseCellSize * 0.13 * herbivoreScale,
+        );
+        this.remainsLayer.fill({ color: 0xa8bf7f, alpha: alphaBase * 0.7 });
+      }
+
+      if (remains.carnivores > 0) {
+        const carnivoreScale = Math.min(1.8, 0.9 + remains.carnivores * 0.14);
+        this.remainsLayer.rect(
+          x - this.baseCellSize * 0.14 * carnivoreScale,
+          y - this.baseCellSize * 0.02,
+          this.baseCellSize * 0.28 * carnivoreScale,
+          this.baseCellSize * 0.09,
+        );
+        this.remainsLayer.fill({ color: 0xd4b68f, alpha: alphaBase * 0.75 });
+      }
+    }
+  }
+
   drawDynamicLayers(): void {
     this.beginSpriteFrame();
+    this.drawInsectRemains();
     this.drawPlants();
     this.drawHerbivores();
     this.drawCarnivores();
@@ -879,6 +991,7 @@ class TerrariumScene {
     }
 
     this.simulator.step();
+    this.updateInsectRemainsAfterStep();
 
     if (this.simulator.tick >= this.simulator.config.world.ticks) {
       this.simulator.finalizeOutcomeIfNeeded();
@@ -926,6 +1039,8 @@ class TerrariumScene {
 
   reset(): void {
     this.simulator = this.createSimulator();
+    this.remainsByCell.clear();
+    this.previousLiveInsects = this.captureLiveInsects();
     this.size = this.simulator.world.size;
     this.elapsed = 0;
     this.running = false;
