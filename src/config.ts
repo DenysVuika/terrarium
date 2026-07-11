@@ -77,6 +77,14 @@ export const DEFAULT_CONFIG = {
       metabolismPerTick: 0.1,
       // Herbivore energy cost per successful movement step.
       moveEnergyCost: 0.8,
+      // Maximum flee points stored by a herbivore.
+      fleePointsMax: 2,
+      // Flee points regenerated per tick.
+      fleePointsRegenPerTick: 0.35,
+      // Flee points consumed per successful flee attempt.
+      fleePointsCost: 1,
+      // Additional energy spent on successful flee (on top of move cost).
+      fleeEnergyCost: 0.5,
       // Consecutive ticks at non-positive energy before herbivore starvation death.
       starvationTicks: 5,
       // Maximum herbivore age in ticks.

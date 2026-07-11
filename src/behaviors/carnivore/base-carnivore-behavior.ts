@@ -32,14 +32,16 @@ export class BaseCarnivoreBehavior implements InsectBehaviorStrategy<Carnivore> 
       entity.ap -= 3;
       const prey = rng.pick(adjacentHerbivores);
 
+      let escaped = false;
       if (prey && rng.chance(carnivoreConfig.preyFleeChance)) {
-        prey.energy -= 1;
-        prey.fleeFrom(entity.cell, ctx);
-        if (!chaseUsed) {
+        escaped = prey.tryFleeFrom(entity.cell, ctx);
+        if (escaped && !chaseUsed) {
           chaseUsed = true;
           entity.moveToward(prey.cell, ctx);
         }
-      } else if (prey) {
+      }
+
+      if (prey && !escaped) {
         prey.energy -= carnivoreConfig.attackDamage;
         if (prey.energy <= 0) {
           prey.alive = false;

@@ -202,13 +202,13 @@ export abstract class Insect extends Entity {
     return true;
   }
 
-  fleeFrom(predatorCell: number, ctx: SimContext): void {
+  fleeFrom(predatorCell: number, ctx: SimContext): boolean {
     const { world } = ctx;
     const predator = world.coords(predatorCell);
 
     const options = world.neighbors8(this.cell).filter((cell) => world.isWalkable(cell) && !ctx.occupied.has(cell));
 
-    if (!options.length) return;
+    if (!options.length) return false;
 
     options.sort((left, right) => {
       const leftPos = world.coords(left);
@@ -222,11 +222,8 @@ export abstract class Insect extends Entity {
       return rightDist - leftDist;
     });
 
-    const previousCell = this.cell;
-    ctx.occupied.delete(this.cell);
-    this.cell = options[0];
-    this.lastCell = previousCell;
-    ctx.occupied.add(this.cell);
+    // Fleeing uses the same movement constraints as normal movement.
+    return this.tryMove(options[0], ctx);
   }
 
   findNearestPlant(radius: number, ctx: SimContext): number {

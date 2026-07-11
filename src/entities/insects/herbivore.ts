@@ -6,10 +6,12 @@ import {
   type InsectBehaviorStrategy,
   resolveHerbivoreBehavior,
 } from '@/behaviors';
+import { clamp } from '@/math';
 import { insectRegistry } from './insect-registry';
 import { Insect } from './insect';
 
 export class Herbivore extends Insect {
+  fleePoints: number;
   readonly behaviorId: HerbivoreBehaviorId;
   private readonly behavior: InsectBehaviorStrategy<Herbivore>;
   private readonly _config: SimulationConfig;
@@ -25,6 +27,7 @@ export class Herbivore extends Insect {
     this._config = config;
     this.behaviorId = behaviorId;
     this.behavior = resolveHerbivoreBehavior(behaviorId);
+    this.fleePoints = this._config.insects.herbivores.fleePointsMax;
   }
 
   get config(): SimulationConfig {
@@ -59,8 +62,33 @@ export class Herbivore extends Insect {
     return this._config.insects.herbivores.moveEnergyCost;
   }
 
+  protected tickExtraLifecycle(): void {
+    const fleeConfig = this._config.insects.herbivores;
+    this.fleePoints = clamp(
+      this.fleePoints + fleeConfig.fleePointsRegenPerTick,
+      0,
+      fleeConfig.fleePointsMax,
+    );
+  }
+
   protected onDeath(ctx: SimContext): void {
     ctx.stats.herbivoreDeaths += 1;
+  }
+
+  tryFleeFrom(predatorCell: number, ctx: SimContext): boolean {
+    const fleeConfig = this._config.insects.herbivores;
+    if (this.fleePoints < fleeConfig.fleePointsCost) return false;
+
+    const escaped = this.fleeFrom(predatorCell, ctx);
+    if (!escaped) return false;
+
+    this.fleePoints = clamp(
+      this.fleePoints - fleeConfig.fleePointsCost,
+      0,
+      fleeConfig.fleePointsMax,
+    );
+    this.energy -= fleeConfig.fleeEnergyCost;
+    return true;
   }
 
   /** Bias random movement toward cells with nearby plants. */

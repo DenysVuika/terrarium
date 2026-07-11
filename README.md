@@ -122,8 +122,10 @@ pnpm web:check
   - **Targeting**: Scan within radius 2 and move toward nearest plant.
   - **Consume Plant**: +5 energy (80% success if adjacent).
 - **Fleeing**:
-  - **20% chance to escape** carnivore attacks.
-  - **Cost**: -1 energy, move 1 cell away (8-directional).
+  - **20% chance to attempt escape** on carnivore attack.
+  - **Flee points**: Max 2, regen +0.35/tick, spend 1 per successful flee.
+  - **Cost**: Uses normal movement step-charge + move energy, plus extra -0.5 flee energy.
+  - If no flee points or movement budget are available, the flee attempt fails and the attack resolves.
 - **Reproduction**:
   - **Conditions**: Energy ≥ 14, cooldown 18, 12% chance, adjacent empty walkable cell.
   - **Crowding gates**:
@@ -154,7 +156,7 @@ pnpm web:check
   - **Attack Cost**: 3 AP.
   - **Per-Turn Action Cap**: 1 attack action per tick, plus at most 1 chase.
   - **Herbivore Hunt**:
-    - 20% chance herbivore escapes (flees 1 cell); otherwise attack resolves.
+    - 20% chance herbivore attempts to flee; escape only succeeds when flee points and move budget are available.
     - If caught: -2 energy to herbivore. If herbivore dies: +7 energy, +5 AP.
     - Hunt targeting radius: 4 cells.
   - **Carnivore vs. Carnivore**:
@@ -235,7 +237,7 @@ Use this section as the source of truth if any diagram and prose disagree.
 | Adjacency model                | Plants spread in 4-neighborhood; insect interactions use 8-neighborhood                                       |
 | Movement model                 | Step-charge based; sand step-cost is 1.5 for both insect types                                                |
 | Carnivore on sand              | -0.5 energy move cost and -1 AP                                                                               |
-| Herbivore flee roll            | 20% escape success; 80% attack resolves                                                                       |
+| Herbivore flee roll            | 20% flee attempt; success requires flee points (max 2, regen 0.35/tick, cost 1) and available move budget     |
 | Carnivore turn economy         | Max 1 attack action and 1 chase per tick                                                                      |
 | Insect lifecycle               | Herbivore egg/larva: 4/2 ticks; carnivore egg/larva: 2/1 ticks                                                |
 | Herbivore breeding gate        | Energy >= 14, cooldown 18, chance 12%, cost 6                                                                 |

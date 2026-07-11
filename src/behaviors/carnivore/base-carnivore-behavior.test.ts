@@ -119,8 +119,9 @@ describe('BaseCarnivoreBehavior', () => {
       cell: world.index(1, 0),
       alive: true,
       energy: 10,
-      fleeFrom: () => {
+      tryFleeFrom: () => {
         fleeCalls += 1;
+        return true;
       },
     };
 
