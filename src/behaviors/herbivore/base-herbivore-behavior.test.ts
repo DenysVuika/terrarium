@@ -19,6 +19,7 @@ function createRng(chanceResults: boolean[] = []): Rng {
 describe('BaseHerbivoreBehavior', () => {
   it('moves toward plants, consumes one, and spawns offspring when gates pass', () => {
     const config = getDefaultConfig();
+    config.insects.herbivores.satiatedEnergyThreshold = 999;
     config.insects.herbivores.breed.chance = 1;
     const world = new World(3, createRng());
     const rng = createRng([true, true]);

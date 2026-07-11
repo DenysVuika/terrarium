@@ -79,6 +79,10 @@ export const DEFAULT_CONFIG = {
       metabolismPerTick: 0.1,
       // Herbivore energy cost per successful movement step.
       moveEnergyCost: 0.8,
+      // Maximum herbivore energy (hunger saturation cap).
+      energyMax: 20,
+      // Above this energy, herbivores prefer roaming over feeding.
+      satiatedEnergyThreshold: 12,
       // Maximum flee points stored by a herbivore.
       fleePointsMax: 2,
       // Flee points regenerated per tick.
@@ -122,6 +126,10 @@ export const DEFAULT_CONFIG = {
       metabolismPerTick: 0.04,
       // Carnivore energy cost per successful movement step.
       moveEnergyCost: 0.5,
+      // Maximum carnivore energy (hunger saturation cap).
+      energyMax: 24,
+      // Above this energy, carnivores prefer roaming over hunting.
+      satiatedEnergyThreshold: 14,
       // Search radius for carnivores when locating prey.
       huntRadius: 4,
       // Chance carnivores fight rivals when eligible.

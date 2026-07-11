@@ -53,6 +53,10 @@ class TestInsect extends Insect {
     return 0.25;
   }
 
+  protected get maxEnergy(): number {
+    return 20;
+  }
+
   protected tickBehavior(): void {
     this.behaviorCalls += 1;
   }
@@ -97,6 +101,10 @@ class DefaultBiasInsect extends Insect {
 
   protected get moveEnergyCost(): number {
     return 0;
+  }
+
+  protected get maxEnergy(): number {
+    return 20;
   }
 
   protected tickBehavior(): void {}

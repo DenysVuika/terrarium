@@ -113,6 +113,7 @@ pnpm web:check
 - **Aging**: Egg (4 ticks) → Larva (2 ticks) → Adult.
 - **Age Rate**: +0.25 age/tick.
 - **Energy**:
+  - **Cap**: Energy is clamped to `insects.herbivores.energyMax` (default `20`).
   - **Passive Loss**: -0.1/tick (scaled by `nightMetabolismMultiplier = 0.7` at night).
   - **No nearby drinkable water**: -0.5 energy/tick.
   - **Starvation**: Die if energy ≤ 0 for 5 ticks.
@@ -122,6 +123,7 @@ pnpm web:check
   - **Sand**: cost 1.5 step-charge, -0.8 energy.
   - Roaming uses anti-backtrack bias to reduce oscillation.
 - **Eating**:
+  - **Satiation Rule**: At or above `satiatedEnergyThreshold` (default `12`), herbivores roam instead of targeting/eating plants.
   - **Targeting**: Scan within radius 2 and move toward nearest plant.
   - **Consume Plant**: +5 energy (80% success if adjacent).
 - **Fleeing**:
@@ -145,6 +147,7 @@ pnpm web:check
 - **Aging**: Egg (2 ticks) → Larva (1 tick) → Adult.
 - **Age Rate**: +0.25 age/tick.
 - **Energy**:
+  - **Cap**: Energy is clamped to `insects.carnivores.energyMax` (default `24`).
   - **Passive Loss**: -0.04/tick (scaled by `nightMetabolismMultiplier = 0.7` at night).
   - **No nearby drinkable water**: -0.2 energy/tick.
   - **Starvation**: Die if energy ≤ 0 for 8 ticks.
@@ -157,6 +160,7 @@ pnpm web:check
   - **Soil**: cost 1.0 step-charge, -0.5 energy.
   - **Sand**: cost 1.5 step-charge, -0.5 energy, and -1 AP (terrain strain).
 - **Combat**:
+  - **Satiation Rule**: At or above `satiatedEnergyThreshold` (default `14`), carnivores roam instead of actively attacking/hunting and skip rival fights.
   - **Attack Cost**: 3 AP.
   - **Per-Turn Action Cap**: 1 attack action per tick, plus at most 1 chase.
   - **Herbivore Hunt**:

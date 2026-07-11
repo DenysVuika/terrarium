@@ -5,21 +5,23 @@ flowchart TD
     H1[Egg] -->|4 ticks| H2[Larva]
     H2 -->|2 ticks| H3[Adult]
 
-    H3 --> H4[Age +0.25, passive energy -0.1 with night multiplier 0.7, step-charge +1.2]
+    H3 --> H4[Age +0.25, passive energy -0.1 with night multiplier 0.7, step-charge +1.2, energy clamped max 20]
     H4 --> H4A[Flee points regen +0.35 capped at 2]
     H4A --> H5{Nearby drinkable water in 8-neighborhood}
     H5 -->|Yes| H6[Drink and remove 0.5 water from nearby cell]
     H5 -->|No| H7[Dehydration penalty -0.5 energy]
 
-    H6 --> H8{Target plant within radius two}
+    H6 --> H8{Energy >= satiated threshold 12}
     H7 --> H8
-    H8 -->|Yes| H9[Move toward plant using 8-direction pathing]
-    H8 -->|No| H10[Roam with anti backtrack bias]
+    H8 -->|Yes| H10[Roam with anti backtrack bias]
+    H8 -->|No| H8A{Target plant within radius two}
+    H8A -->|Yes| H9[Move toward plant using 8-direction pathing]
+    H8A -->|No| H10
 
     H9 --> H11[Move cost: step 1.0 on soil or 1.5 on sand, energy -0.8]
     H10 --> H11
 
-    H11 --> H12{Plant in current or adjacent 8-neighborhood}
+    H11 --> H12{Plant in current or adjacent 8-neighborhood and not satiated}
     H12 -->|Yes with 80% chance| H13[Eat plant, +5 energy, plant removed]
     H12 -->|No| H14[No meal]
 

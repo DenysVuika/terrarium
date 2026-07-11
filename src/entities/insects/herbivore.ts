@@ -64,6 +64,9 @@ export class Herbivore extends Insect {
   protected get moveEnergyCost(): number {
     return this._config.insects.herbivores.moveEnergyCost;
   }
+  protected get maxEnergy(): number {
+    return this._config.insects.herbivores.energyMax;
+  }
 
   protected tickExtraLifecycle(): void {
     const fleeConfig = this._config.insects.herbivores;

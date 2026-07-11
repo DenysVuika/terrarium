@@ -55,6 +55,7 @@ export abstract class Insect extends Entity {
   protected abstract get metabolismPerTick(): number;
   protected abstract get dehydrationPenalty(): number;
   protected abstract get moveEnergyCost(): number;
+  protected abstract get maxEnergy(): number;
 
   protected tickExtraLifecycle(_ctx: SimContext): void {}
 
@@ -71,6 +72,7 @@ export abstract class Insect extends Entity {
     if (this.alive && this.stage === 'adult') {
       this.tickBehavior(ctx);
     }
+    this.energy = clamp(this.energy, 0, this.maxEnergy);
   }
 
   protected abstract tickBehavior(ctx: SimContext): void;

@@ -6,13 +6,15 @@ flowchart TD
     C1[Egg] -->|2 ticks| C2[Larva]
     C2 -->|1 tick| C3[Adult]
 
-    C3 --> C4[Age +0.25, passive energy -0.04 with night multiplier 0.7, AP +1]
+    C3 --> C4[Age +0.25, passive energy -0.04 with night multiplier 0.7, AP +1, energy clamped max 24]
     C4 --> C5{Nearby drinkable water in 8-neighborhood?}
     C5 -->|Yes| C6[Drink: remove 0.5 water]
     C5 -->|No| C7[Dehydration penalty: -0.2 energy]
 
-    C6 --> C8{Adjacent herbivore and AP >= 3?}
-    C7 --> C8
+    C6 --> C7A{Energy >= satiated threshold 14}
+    C7 --> C7A
+    C7A -->|Yes| C20[Roam randomly]
+    C7A -->|No| C8{Adjacent herbivore and AP >= 3?}
 
     C8 -->|Yes| C9[Attack herbivore: AP -3]
     C9 --> C10{Flee attempt roll 20%}
@@ -39,7 +41,7 @@ flowchart TD
     C23 -->|Yes| C24[AP -1 terrain strain]
     C23 -->|No| C25[No AP terrain penalty]
 
-    C25 --> C26{Rival fight check}
+    C25 --> C26{Rival fight check: only when not satiated}
     C24 --> C26
     C26 -->|Adjacent rival, AP >= 3, Energy >= 9, 12% chance| C27[Fight: both lose 2 energy]
     C26 -->|Otherwise| C28[Skip rival fight]

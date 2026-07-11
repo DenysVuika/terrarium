@@ -68,6 +68,9 @@ export class Carnivore extends Insect {
   protected get moveEnergyCost(): number {
     return this._config.insects.carnivores.moveEnergyCost;
   }
+  protected get maxEnergy(): number {
+    return this._config.insects.carnivores.energyMax;
+  }
 
   protected tickExtraLifecycle(ctx: SimContext): void {
     this.ap = clamp(this.ap + ctx.config.insects.carnivores.apRegenPerTick, 0, 10);
